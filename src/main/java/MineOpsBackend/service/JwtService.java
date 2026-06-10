@@ -16,11 +16,10 @@ import java.util.Map;
 @Service
 public class JwtService {
 
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final String secret;
 
-    public JwtService(ObjectMapper objectMapper, @Value("${mineops.jwt.secret}") String secret) {
-        this.objectMapper = objectMapper;
+    public JwtService(@Value("${mineops.jwt.secret}") String secret) {
         this.secret = secret;
     }
 
