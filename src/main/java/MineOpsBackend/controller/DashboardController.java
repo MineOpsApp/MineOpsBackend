@@ -1,5 +1,6 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.repository.SiteRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -10,11 +11,17 @@ import java.util.Map;
 @RestController
 public class DashboardController {
 
+    private final SiteRepository siteRepository;
+
+    public DashboardController(SiteRepository siteRepository) {
+        this.siteRepository = siteRepository;
+    }
+
     @GetMapping("/api/dashboard")
     public Map<String, Object> getDashboard() {
         Map<String, Object> dashboard = new LinkedHashMap<>();
 
-        dashboard.put("siteCount", 3);
+        dashboard.put("siteCount", siteRepository.count());
         dashboard.put("equipmentCount", 18);
         dashboard.put("activeEquipment", 14);
         dashboard.put("openInspections", 5);
