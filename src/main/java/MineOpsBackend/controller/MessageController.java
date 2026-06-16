@@ -2,6 +2,7 @@ package MineOpsBackend.controller;
 
 import MineOpsBackend.model.SupervisorMessage;
 import MineOpsBackend.repository.SupervisorMessageRepository;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,9 +15,14 @@ import java.util.Map;
 public class MessageController {
 
     private final SupervisorMessageRepository supervisorMessageRepository;
+    private final AuditLogService auditLogService;
 
-    public MessageController(SupervisorMessageRepository supervisorMessageRepository) {
+    public MessageController(
+        SupervisorMessageRepository supervisorMessageRepository,
+        AuditLogService auditLogService
+    ) {
         this.supervisorMessageRepository = supervisorMessageRepository;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/api/messages")
@@ -32,6 +38,17 @@ public class MessageController {
             request.getOrDefault("message", "Supervisor briefing sent from MineOps")
         );
 
-        return supervisorMessageRepository.save(message);
+        SupervisorMessage saved = supervisorMessageRepository.save(message);
+        auditLogService.record(
+            "MESSAGE_SENT",
+            saved.getSenderRole(),
+            request.getOrDefault("actorName", "Unknown User"),
+            request.getOrDefault("actorEmail", ""),
+            "SupervisorMessage",
+            saved.getId(),
+            saved.getAudience()
+        );
+
+        return saved;
     }
 }

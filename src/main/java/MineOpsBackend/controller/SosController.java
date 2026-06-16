@@ -2,6 +2,7 @@ package MineOpsBackend.controller;
 
 import MineOpsBackend.model.SosAlert;
 import MineOpsBackend.repository.SosAlertRepository;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,9 +15,11 @@ import java.util.Map;
 public class SosController {
 
     private final SosAlertRepository sosAlertRepository;
+    private final AuditLogService auditLogService;
 
-    public SosController(SosAlertRepository sosAlertRepository) {
+    public SosController(SosAlertRepository sosAlertRepository, AuditLogService auditLogService) {
         this.sosAlertRepository = sosAlertRepository;
+        this.auditLogService = auditLogService;
     }
 
     @PostMapping("/api/sos")
@@ -27,7 +30,18 @@ public class SosController {
             request.getOrDefault("message", "Emergency assistance requested")
         );
 
-        return sosAlertRepository.save(alert);
+        SosAlert saved = sosAlertRepository.save(alert);
+        auditLogService.record(
+            "SOS_TRIGGERED",
+            saved.getRole(),
+            request.getOrDefault("actorName", "Unknown User"),
+            request.getOrDefault("actorEmail", ""),
+            "SosAlert",
+            saved.getId(),
+            saved.getSite() + ": " + saved.getMessage()
+        );
+
+        return saved;
     }
 
     @GetMapping("/api/sos")

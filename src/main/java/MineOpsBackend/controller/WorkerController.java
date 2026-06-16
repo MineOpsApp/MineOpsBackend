@@ -9,6 +9,7 @@ import MineOpsBackend.repository.EquipmentFaultRepository;
 import MineOpsBackend.repository.HazardReportRepository;
 import MineOpsBackend.repository.MaintenanceRequestRepository;
 import MineOpsBackend.repository.WorkerEquipmentRepository;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,19 +29,22 @@ public class WorkerController {
     private final HazardReportRepository hazardReportRepository;
     private final MaintenanceRequestRepository maintenanceRequestRepository;
     private final WorkerEquipmentRepository workerEquipmentRepository;
+    private final AuditLogService auditLogService;
 
     public WorkerController(
         AppUserRepository appUserRepository,
         EquipmentFaultRepository equipmentFaultRepository,
         HazardReportRepository hazardReportRepository,
         MaintenanceRequestRepository maintenanceRequestRepository,
-        WorkerEquipmentRepository workerEquipmentRepository
+        WorkerEquipmentRepository workerEquipmentRepository,
+        AuditLogService auditLogService
     ) {
         this.appUserRepository = appUserRepository;
         this.equipmentFaultRepository = equipmentFaultRepository;
         this.hazardReportRepository = hazardReportRepository;
         this.maintenanceRequestRepository = maintenanceRequestRepository;
         this.workerEquipmentRepository = workerEquipmentRepository;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/api/workers/me")
@@ -55,9 +59,7 @@ public class WorkerController {
         profile.put("assignedSite", "Obuasi Mine");
         profile.put("assignedZone", "Zone A");
         profile.put("assignedEquipment", workerEquipmentRepository.findByWorkerEmailIgnoreCase(email));
-        profile.put("submittedHazards", hazardReportRepository.findAllByOrderByCreatedAtDesc().stream()
-            .filter((hazard) -> user.getRole().equalsIgnoreCase(hazard.getReportedByRole()))
-            .toList());
+        profile.put("submittedHazards", hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(email));
         profile.put("equipmentFaults", equipmentFaultRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(email));
         profile.put("maintenanceRequests", maintenanceRequestRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(email));
         profile.put("inspectionHistory", List.of(
@@ -85,25 +87,58 @@ public class WorkerController {
             .orElseThrow();
         equipment.setStatus(request.getOrDefault("status", "Operational"));
 
-        return workerEquipmentRepository.save(equipment);
+        WorkerEquipment saved = workerEquipmentRepository.save(equipment);
+        auditLogService.record(
+            "EQUIPMENT_STATUS_UPDATED",
+            "worker",
+            request.getOrDefault("actorName", "Unknown User"),
+            saved.getWorkerEmail(),
+            "WorkerEquipment",
+            saved.getId(),
+            saved.getCode() + " set to " + saved.getStatus()
+        );
+
+        return saved;
     }
 
     @PostMapping("/api/workers/equipment/faults")
     public EquipmentFault reportEquipmentFault(@RequestBody Map<String, String> request) {
-        return equipmentFaultRepository.save(new EquipmentFault(
+        EquipmentFault fault = equipmentFaultRepository.save(new EquipmentFault(
             request.getOrDefault("workerEmail", ""),
             request.getOrDefault("equipmentCode", "EQ-UNKNOWN"),
             request.getOrDefault("description", "Equipment fault reported")
         ));
+        auditLogService.record(
+            "EQUIPMENT_FAULT_REPORTED",
+            "worker",
+            request.getOrDefault("workerName", "Unknown User"),
+            fault.getWorkerEmail(),
+            "EquipmentFault",
+            fault.getId(),
+            fault.getEquipmentCode() + ": " + fault.getDescription()
+        );
+
+        return fault;
     }
 
     @PostMapping("/api/workers/equipment/maintenance")
     public MaintenanceRequest requestMaintenance(@RequestBody Map<String, String> request) {
-        return maintenanceRequestRepository.save(new MaintenanceRequest(
+        MaintenanceRequest maintenanceRequest = maintenanceRequestRepository.save(new MaintenanceRequest(
             request.getOrDefault("workerEmail", ""),
             request.getOrDefault("equipmentCode", "EQ-UNKNOWN"),
             request.getOrDefault("requestDetails", "Maintenance requested")
         ));
+        auditLogService.record(
+            "MAINTENANCE_REQUESTED",
+            "worker",
+            request.getOrDefault("workerName", "Unknown User"),
+            maintenanceRequest.getWorkerEmail(),
+            "MaintenanceRequest",
+            maintenanceRequest.getId(),
+            maintenanceRequest.getEquipmentCode() + ": " + maintenanceRequest.getRequestDetails()
+        );
+
+        return maintenanceRequest;
     }
 
     private void ensureEquipment(String email) {

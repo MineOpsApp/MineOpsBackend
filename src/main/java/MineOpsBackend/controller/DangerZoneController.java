@@ -2,6 +2,7 @@ package MineOpsBackend.controller;
 
 import MineOpsBackend.model.DangerZone;
 import MineOpsBackend.repository.DangerZoneRepository;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,9 +15,11 @@ import java.util.Map;
 public class DangerZoneController {
 
     private final DangerZoneRepository dangerZoneRepository;
+    private final AuditLogService auditLogService;
 
-    public DangerZoneController(DangerZoneRepository dangerZoneRepository) {
+    public DangerZoneController(DangerZoneRepository dangerZoneRepository, AuditLogService auditLogService) {
         this.dangerZoneRepository = dangerZoneRepository;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/api/danger-zones")
@@ -32,6 +35,17 @@ public class DangerZoneController {
             request.getOrDefault("riskLevel", "High")
         );
 
-        return dangerZoneRepository.save(zone);
+        DangerZone saved = dangerZoneRepository.save(zone);
+        auditLogService.record(
+            "DANGER_ZONE_CREATED",
+            request.getOrDefault("actorRole", "safetyOfficer"),
+            request.getOrDefault("actorName", "Unknown User"),
+            request.getOrDefault("actorEmail", ""),
+            "DangerZone",
+            saved.getId(),
+            saved.getZoneName() + " - " + saved.getRiskLevel()
+        );
+
+        return saved;
     }
 }

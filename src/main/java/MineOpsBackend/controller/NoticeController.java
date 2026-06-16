@@ -4,6 +4,7 @@ import MineOpsBackend.model.Notice;
 import MineOpsBackend.model.NoticeSeen;
 import MineOpsBackend.repository.NoticeRepository;
 import MineOpsBackend.repository.NoticeSeenRepository;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,10 +20,16 @@ public class NoticeController {
 
     private final NoticeRepository noticeRepository;
     private final NoticeSeenRepository noticeSeenRepository;
+    private final AuditLogService auditLogService;
 
-    public NoticeController(NoticeRepository noticeRepository, NoticeSeenRepository noticeSeenRepository) {
+    public NoticeController(
+        NoticeRepository noticeRepository,
+        NoticeSeenRepository noticeSeenRepository,
+        AuditLogService auditLogService
+    ) {
         this.noticeRepository = noticeRepository;
         this.noticeSeenRepository = noticeSeenRepository;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/api/notices")
@@ -40,7 +47,18 @@ public class NoticeController {
             request.getOrDefault("postedByRole", "supervisor")
         );
 
-        return noticeResponse(noticeRepository.save(notice));
+        Notice saved = noticeRepository.save(notice);
+        auditLogService.record(
+            "NOTICE_POSTED",
+            saved.getPostedByRole(),
+            request.getOrDefault("actorName", "Unknown User"),
+            request.getOrDefault("actorEmail", ""),
+            "Notice",
+            saved.getId(),
+            saved.getTitle()
+        );
+
+        return noticeResponse(saved);
     }
 
     @PostMapping("/api/notices/{id}/seen")
@@ -49,12 +67,21 @@ public class NoticeController {
         String email = request.getOrDefault("email", "").trim().toLowerCase();
 
         if (!email.isEmpty() && !noticeSeenRepository.existsByNoticeIdAndEmailIgnoreCase(id, email)) {
-            noticeSeenRepository.save(new NoticeSeen(
+            NoticeSeen seen = noticeSeenRepository.save(new NoticeSeen(
                 id,
                 request.getOrDefault("fullName", "Unknown User"),
                 email,
                 request.getOrDefault("role", "unknown")
             ));
+            auditLogService.record(
+                "NOTICE_SEEN",
+                seen.getRole(),
+                seen.getFullName(),
+                seen.getEmail(),
+                "Notice",
+                id,
+                notice.getTitle()
+            );
         }
 
         return noticeResponse(notice);

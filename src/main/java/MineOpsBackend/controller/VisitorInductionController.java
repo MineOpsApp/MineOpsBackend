@@ -2,6 +2,7 @@ package MineOpsBackend.controller;
 
 import MineOpsBackend.model.VisitorInduction;
 import MineOpsBackend.repository.VisitorInductionRepository;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,9 +15,14 @@ import java.util.Map;
 public class VisitorInductionController {
 
     private final VisitorInductionRepository visitorInductionRepository;
+    private final AuditLogService auditLogService;
 
-    public VisitorInductionController(VisitorInductionRepository visitorInductionRepository) {
+    public VisitorInductionController(
+        VisitorInductionRepository visitorInductionRepository,
+        AuditLogService auditLogService
+    ) {
         this.visitorInductionRepository = visitorInductionRepository;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/api/inductions")
@@ -31,6 +37,17 @@ public class VisitorInductionController {
             request.getOrDefault("site", "Obuasi Mine")
         );
 
-        return visitorInductionRepository.save(induction);
+        VisitorInduction saved = visitorInductionRepository.save(induction);
+        auditLogService.record(
+            "VISITOR_INDUCTION_COMPLETED",
+            request.getOrDefault("actorRole", "guest"),
+            request.getOrDefault("actorName", request.getOrDefault("visitorType", "Guest")),
+            request.getOrDefault("actorEmail", ""),
+            "VisitorInduction",
+            saved.getId(),
+            saved.getSite()
+        );
+
+        return saved;
     }
 }
