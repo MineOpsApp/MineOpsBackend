@@ -61,14 +61,15 @@ public class HazardController {
         @Valid @RequestBody CreateHazardRequest request
     ) {
         HazardReport report = new HazardReport(
-            user.role(),
-            user.fullName(),
-            user.email(),
-            request.hazardType(),
-            request.site(),
-            request.location(),
-            request.description()
-        );
+    user.role(),
+    user.fullName(),
+    user.email(),
+    request.hazardType(),
+    request.site(),
+    request.location(),
+    request.description(),
+    request.severity()
+);
 
         HazardReport saved = hazardReportRepository.save(report);
         auditLogService.record(
