@@ -1,8 +1,11 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.dto.LoginRequest;
+import MineOpsBackend.dto.RegisterRequest;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.service.JwtService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,10 +20,8 @@ import java.util.Set;
 public class AuthController {
 
     private static final Set<String> ALLOWED_ROLES = Set.of(
-        "worker",
-        "supervisor",
-        "safetyOfficer",
-        "guest"
+    "worker",
+    "guest"
     );
 
     private final AppUserRepository appUserRepository;
@@ -33,42 +34,39 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/register")
-    public Map<String, Object> register(@RequestBody Map<String, String> request) {
-        String fullName = required(request, "fullName");
-        String email = required(request, "email").trim().toLowerCase();
-        String password = required(request, "password");
-        String role = required(request, "role");
+    public Map<String, Object> register(@Valid @RequestBody RegisterRequest request) {
+        String email = request.email().trim().toLowerCase();
 
-        if (!ALLOWED_ROLES.contains(role)) {
+        if (!ALLOWED_ROLES.contains(request.role())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role");
-        }
-
-        if (password.length() < 6) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password must be at least 6 characters");
         }
 
         if (appUserRepository.existsByEmailIgnoreCase(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
         }
 
+        String assignedSite = (request.assignedSite() == null || request.assignedSite().isBlank())
+            ? "Obuasi Mine"
+            : request.assignedSite();
+
         AppUser user = appUserRepository.save(new AppUser(
-            fullName,
+            request.fullName().trim(),
             email,
-            passwordEncoder.encode(password),
-            role
+            passwordEncoder.encode(request.password()),
+            request.role(),
+            assignedSite
         ));
 
         return authResponse(user);
     }
 
     @PostMapping("/api/auth/login")
-    public Map<String, Object> login(@RequestBody Map<String, String> request) {
-        String email = required(request, "email").trim().toLowerCase();
-        String password = required(request, "password");
+    public Map<String, Object> login(@Valid @RequestBody LoginRequest request) {
+        String email = request.email().trim().toLowerCase();
         AppUser user = appUserRepository.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
 
-        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
 
@@ -82,18 +80,10 @@ public class AuthController {
                 "id", user.getId(),
                 "fullName", user.getFullName(),
                 "email", user.getEmail(),
-                "role", user.getRole()
+                "role", user.getRole(),
+                "assignedSite", user.getAssignedSite()
             )
         );
     }
-
-    private String required(Map<String, String> request, String key) {
-        String value = request.get(key);
-
-        if (value == null || value.trim().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, key + " is required");
-        }
-
-        return value.trim();
-    }
 }
+

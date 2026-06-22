@@ -9,6 +9,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -20,7 +21,11 @@ public class JwtService {
     private final String secret;
 
     public JwtService(@Value("${mineops.jwt.secret}") String secret) {
-        this.secret = secret;
+        if (secret == null || secret.trim().length() < 32) {
+            throw new IllegalStateException("MINEOPS_JWT_SECRET must be set and at least 32 characters long");
+        }
+
+        this.secret = secret.trim();
     }
 
     public String createToken(AppUser user) {
@@ -33,6 +38,7 @@ public class JwtService {
             payload.put("sub", user.getId());
             payload.put("email", user.getEmail());
             payload.put("role", user.getRole());
+            payload.put("site", user.getAssignedSite());
             payload.put("exp", Instant.now().plusSeconds(60 * 60 * 8).getEpochSecond());
 
             String headerPart = encode(objectMapper.writeValueAsBytes(header));
@@ -42,6 +48,39 @@ public class JwtService {
             return headerPart + "." + payloadPart + "." + signaturePart;
         } catch (Exception error) {
             throw new IllegalStateException("Could not create token", error);
+        }
+    }
+
+    public JwtClaims validateToken(String token) {
+        try {
+            String[] parts = token.split("\\.");
+
+            if (parts.length != 3) {
+                throw new IllegalArgumentException("Invalid token format");
+            }
+
+            String signedContent = parts[0] + "." + parts[1];
+            String expectedSignature = sign(signedContent);
+
+            if (!constantTimeEquals(expectedSignature, parts[2])) {
+                throw new IllegalArgumentException("Invalid token signature");
+            }
+
+            Map<String, Object> payload = objectMapper.readValue(decode(parts[1]), Map.class);
+            long expiresAt = asLong(payload.get("exp"));
+
+            if (Instant.now().getEpochSecond() >= expiresAt) {
+                throw new IllegalArgumentException("Token expired");
+            }
+
+            return new JwtClaims(
+                asLong(payload.get("sub")),
+                asString(payload.get("email")),
+                asString(payload.get("role")),
+                payload.get("site") == null ? null : String.valueOf(payload.get("site"))
+            );
+        } catch (Exception error) {
+            throw new IllegalArgumentException("Invalid token", error);
         }
     }
 
@@ -55,4 +94,36 @@ public class JwtService {
     private String encode(byte[] value) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
     }
+
+    private byte[] decode(String value) {
+        return Base64.getUrlDecoder().decode(value);
+    }
+
+    private boolean constantTimeEquals(String expected, String actual) {
+        return Arrays.equals(
+            expected.getBytes(StandardCharsets.UTF_8),
+            actual.getBytes(StandardCharsets.UTF_8)
+        );
+    }
+
+    private long asLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+
+        return Long.parseLong(String.valueOf(value));
+    }
+
+    private String asString(Object value) {
+        if (value == null) {
+            throw new IllegalArgumentException("Missing token claim");
+        }
+
+        return String.valueOf(value);
+    }
+
+    public record JwtClaims(Long userId, String email, String role, String site) {
+    }
 }
+
+

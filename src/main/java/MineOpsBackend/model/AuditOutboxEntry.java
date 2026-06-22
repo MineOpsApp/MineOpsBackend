@@ -1,5 +1,6 @@
 package MineOpsBackend.model;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -9,49 +10,35 @@ import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "audit_logs")
-public class AuditLog {
+@Table(name = "audit_outbox")
+public class AuditOutboxEntry {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false)
     private String action;
 
     private String actorRole;
-
     private String actorName;
-
     private String actorEmail;
-
     private String targetType;
-
     private Long targetId;
-
     private String details;
 
+    @Column(nullable = false)
+    private String status;
+
+    @Column(nullable = false)
+    private Integer attempts;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
 
-    public AuditLog() {
-    }
+    private LocalDateTime lastAttemptAt;
 
-    public AuditLog(
-        String action,
-        String actorRole,
-        String actorName,
-        String actorEmail,
-        String targetType,
-        Long targetId,
-        String details
-    ) {
-        this.action = action;
-        this.actorRole = actorRole;
-        this.actorName = actorName;
-        this.actorEmail = actorEmail;
-        this.targetType = targetType;
-        this.targetId = targetId;
-        this.details = details;
-        this.createdAt = LocalDateTime.now();
+    public AuditOutboxEntry() {
     }
 
     public Long getId() {
@@ -114,11 +101,35 @@ public class AuditLog {
         this.details = details;
     }
 
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public Integer getAttempts() {
+        return attempts;
+    }
+
+    public void setAttempts(Integer attempts) {
+        this.attempts = attempts;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getLastAttemptAt() {
+        return lastAttemptAt;
+    }
+
+    public void setLastAttemptAt(LocalDateTime lastAttemptAt) {
+        this.lastAttemptAt = lastAttemptAt;
     }
 }

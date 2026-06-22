@@ -1,15 +1,19 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.dto.CompleteInductionRequest;
 import MineOpsBackend.model.VisitorInduction;
 import MineOpsBackend.repository.VisitorInductionRepository;
+import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 public class VisitorInductionController {
@@ -26,23 +30,28 @@ public class VisitorInductionController {
     }
 
     @GetMapping("/api/inductions")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public List<VisitorInduction> getInductions() {
         return visitorInductionRepository.findAllByOrderByCompletedAtDesc();
     }
 
     @PostMapping("/api/inductions")
-    public VisitorInduction completeInduction(@RequestBody Map<String, String> request) {
+    @PreAuthorize("hasAuthority('ROLE_GUEST')")
+    public VisitorInduction completeInduction(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @Valid @RequestBody CompleteInductionRequest request
+    ) {
         VisitorInduction induction = new VisitorInduction(
-            request.getOrDefault("visitorType", "Guest"),
-            request.getOrDefault("site", "Obuasi Mine")
+            request.visitorType(),
+            request.site()
         );
 
         VisitorInduction saved = visitorInductionRepository.save(induction);
         auditLogService.record(
             "VISITOR_INDUCTION_COMPLETED",
-            request.getOrDefault("actorRole", "guest"),
-            request.getOrDefault("actorName", request.getOrDefault("visitorType", "Guest")),
-            request.getOrDefault("actorEmail", ""),
+            user.role(),
+            user.fullName(),
+            user.email(),
             "VisitorInduction",
             saved.getId(),
             saved.getSite()

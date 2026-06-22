@@ -9,4 +9,8 @@ public interface NoticeSeenRepository extends JpaRepository<NoticeSeen, Long> {
     boolean existsByNoticeIdAndEmailIgnoreCase(Long noticeId, String email);
 
     List<NoticeSeen> findByNoticeIdOrderBySeenAtDesc(Long noticeId);
+
+    List<NoticeSeen> findByNoticeIdInOrderBySeenAtDesc(List<Long> noticeIds);
 }
+
+

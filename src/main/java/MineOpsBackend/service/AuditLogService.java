@@ -1,19 +1,19 @@
 package MineOpsBackend.service;
 
-import MineOpsBackend.model.AuditLog;
-import MineOpsBackend.repository.AuditLogRepository;
+import MineOpsBackend.model.AuditOutboxEntry;
+import MineOpsBackend.repository.AuditOutboxRepository;
 import org.springframework.stereotype.Service;
 
 @Service
 public class AuditLogService {
 
-    private final AuditLogRepository auditLogRepository;
+    private final AuditOutboxRepository auditOutboxRepository;
 
-    public AuditLogService(AuditLogRepository auditLogRepository) {
-        this.auditLogRepository = auditLogRepository;
+    public AuditLogService(AuditOutboxRepository auditOutboxRepository) {
+        this.auditOutboxRepository = auditOutboxRepository;
     }
 
-    public AuditLog record(
+    public void record(
         String action,
         String actorRole,
         String actorName,
@@ -22,15 +22,19 @@ public class AuditLogService {
         Long targetId,
         String details
     ) {
-        return auditLogRepository.save(new AuditLog(
-            valueOrUnknown(action),
-            valueOrUnknown(actorRole),
-            valueOrUnknown(actorName),
-            valueOrUnknown(actorEmail),
-            valueOrUnknown(targetType),
-            targetId,
-            valueOrUnknown(details)
-        ));
+        AuditOutboxEntry entry = new AuditOutboxEntry();
+        entry.setAction(valueOrUnknown(action));
+        entry.setActorRole(valueOrUnknown(actorRole));
+        entry.setActorName(valueOrUnknown(actorName));
+        entry.setActorEmail(valueOrUnknown(actorEmail));
+        entry.setTargetType(valueOrUnknown(targetType));
+        entry.setTargetId(targetId);
+        entry.setDetails(valueOrUnknown(details));
+        entry.setStatus("PENDING");
+        entry.setAttempts(0);
+        entry.setCreatedAt(java.time.LocalDateTime.now());
+
+        auditOutboxRepository.save(entry);
     }
 
     private String valueOrUnknown(String value) {

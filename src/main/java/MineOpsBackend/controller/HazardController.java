@@ -1,19 +1,28 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.dto.CloseHazardRequest;
+import MineOpsBackend.dto.CreateHazardRequest;
+import MineOpsBackend.dto.ReviewHazardRequest;
 import MineOpsBackend.model.HazardReport;
 import MineOpsBackend.repository.HazardReportRepository;
+import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 public class HazardController {
@@ -27,24 +36,38 @@ public class HazardController {
     }
 
     @GetMapping("/api/hazards")
-    public List<HazardReport> getHazards(@RequestParam(required = false) String reportedByEmail) {
-        if (reportedByEmail != null && !reportedByEmail.trim().isEmpty()) {
-            return hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(reportedByEmail);
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public Page<HazardReport> getHazards(@AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
+        if ("worker".equals(user.role())) {
+            return hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(user.email(), pageable);
         }
 
-        return hazardReportRepository.findAllByOrderByCreatedAtDesc();
+        return hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite(), pageable);
+    }
+
+    @GetMapping("/api/hazards/site-alerts")
+    @PreAuthorize("isAuthenticated()")
+    public List<HazardReport> getSiteHazardAlerts(@AuthenticationPrincipal AuthenticatedUser user) {
+        return hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite()).stream()
+            .filter((hazard) -> !"CLEARED".equalsIgnoreCase(hazard.getStatus()))
+            .limit(10)
+            .toList();
     }
 
     @PostMapping("/api/hazards")
-    public HazardReport createHazard(@RequestBody Map<String, String> request) {
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public HazardReport createHazard(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @Valid @RequestBody CreateHazardRequest request
+    ) {
         HazardReport report = new HazardReport(
-            request.getOrDefault("reportedByRole", "worker"),
-            request.getOrDefault("reportedByName", "Unknown User"),
-            request.getOrDefault("reportedByEmail", ""),
-            request.getOrDefault("hazardType", "General"),
-            request.getOrDefault("site", "Obuasi Mine"),
-            request.getOrDefault("location", "Unspecified location"),
-            request.getOrDefault("description", "Hazard reported from MineOps app")
+            user.role(),
+            user.fullName(),
+            user.email(),
+            request.hazardType(),
+            request.site(),
+            request.location(),
+            request.description()
         );
 
         HazardReport saved = hazardReportRepository.save(report);
@@ -62,14 +85,20 @@ public class HazardController {
     }
 
     @PatchMapping("/api/hazards/{id}/review")
-    public HazardReport reviewHazard(@PathVariable Long id, @RequestBody Map<String, String> request) {
-        HazardReport report = hazardReportRepository.findById(id).orElseThrow();
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public HazardReport reviewHazard(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @PathVariable Long id,
+        @Valid @RequestBody ReviewHazardRequest request
+    ) {
+        HazardReport report = hazardReportRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hazard report not found"));
         report.setStatus("REVIEWED");
         report.setReviewedAt(LocalDateTime.now());
-        report.setReviewedByRole(request.getOrDefault("actorRole", "supervisor"));
-        report.setReviewedByName(request.getOrDefault("actorName", "Unknown User"));
-        report.setReviewedByEmail(request.getOrDefault("actorEmail", ""));
-        report.setActionTaken(request.getOrDefault("actionTaken", "Hazard reviewed"));
+        report.setReviewedByRole(user.role());
+        report.setReviewedByName(user.fullName());
+        report.setReviewedByEmail(user.email());
+        report.setActionTaken(request.actionTaken());
 
         HazardReport saved = hazardReportRepository.save(report);
         auditLogService.record(
@@ -86,15 +115,24 @@ public class HazardController {
     }
 
     @PatchMapping("/api/hazards/{id}/close")
-    public HazardReport closeHazard(@PathVariable Long id, @RequestBody(required = false) Map<String, String> request) {
-        Map<String, String> details = request == null ? Map.of() : request;
-        HazardReport report = hazardReportRepository.findById(id).orElseThrow();
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public HazardReport closeHazard(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @PathVariable Long id,
+        @RequestBody(required = false) CloseHazardRequest request
+    ) {
+        String actionTaken = (request != null && request.actionTaken() != null && !request.actionTaken().isBlank())
+            ? request.actionTaken()
+            : "Hazard cleared";
+
+        HazardReport report = hazardReportRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hazard report not found"));
         report.setStatus("CLEARED");
         report.setClosedAt(LocalDateTime.now());
-        report.setClosedByRole(details.getOrDefault("actorRole", "safetyOfficer"));
-        report.setClosedByName(details.getOrDefault("actorName", "Unknown User"));
-        report.setClosedByEmail(details.getOrDefault("actorEmail", ""));
-        report.setActionTaken(details.getOrDefault("actionTaken", "Hazard cleared"));
+        report.setClosedByRole(user.role());
+        report.setClosedByName(user.fullName());
+        report.setClosedByEmail(user.email());
+        report.setActionTaken(actionTaken);
 
         HazardReport saved = hazardReportRepository.save(report);
         auditLogService.record(

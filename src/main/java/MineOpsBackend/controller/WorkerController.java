@@ -1,21 +1,27 @@
 package MineOpsBackend.controller;
 
-import MineOpsBackend.model.AppUser;
+import MineOpsBackend.dto.ReportFaultRequest;
+import MineOpsBackend.dto.RequestMaintenanceRequest;
+import MineOpsBackend.dto.UpdateEquipmentStatusRequest;
 import MineOpsBackend.model.EquipmentFault;
 import MineOpsBackend.model.MaintenanceRequest;
 import MineOpsBackend.model.WorkerEquipment;
-import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.EquipmentFaultRepository;
 import MineOpsBackend.repository.HazardReportRepository;
 import MineOpsBackend.repository.MaintenanceRequestRepository;
 import MineOpsBackend.repository.WorkerEquipmentRepository;
+import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +30,6 @@ import java.util.Map;
 @RestController
 public class WorkerController {
 
-    private final AppUserRepository appUserRepository;
     private final EquipmentFaultRepository equipmentFaultRepository;
     private final HazardReportRepository hazardReportRepository;
     private final MaintenanceRequestRepository maintenanceRequestRepository;
@@ -32,14 +37,12 @@ public class WorkerController {
     private final AuditLogService auditLogService;
 
     public WorkerController(
-        AppUserRepository appUserRepository,
         EquipmentFaultRepository equipmentFaultRepository,
         HazardReportRepository hazardReportRepository,
         MaintenanceRequestRepository maintenanceRequestRepository,
         WorkerEquipmentRepository workerEquipmentRepository,
         AuditLogService auditLogService
     ) {
-        this.appUserRepository = appUserRepository;
         this.equipmentFaultRepository = equipmentFaultRepository;
         this.hazardReportRepository = hazardReportRepository;
         this.maintenanceRequestRepository = maintenanceRequestRepository;
@@ -48,20 +51,20 @@ public class WorkerController {
     }
 
     @GetMapping("/api/workers/me")
-    public Map<String, Object> getWorkerProfile(@RequestParam String email) {
-        AppUser user = appUserRepository.findByEmailIgnoreCase(email).orElseThrow();
-        ensureEquipment(email);
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public Map<String, Object> getWorkerProfile(@AuthenticationPrincipal AuthenticatedUser user) {
+        ensureEquipment(user.email());
 
         Map<String, Object> profile = new LinkedHashMap<>();
-        profile.put("fullName", user.getFullName());
-        profile.put("email", user.getEmail());
-        profile.put("role", user.getRole());
-        profile.put("assignedSite", "Obuasi Mine");
+        profile.put("fullName", user.fullName());
+        profile.put("email", user.email());
+        profile.put("role", user.role());
+        profile.put("assignedSite", user.assignedSite());
         profile.put("assignedZone", "Zone A");
-        profile.put("assignedEquipment", workerEquipmentRepository.findByWorkerEmailIgnoreCase(email));
-        profile.put("submittedHazards", hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(email));
-        profile.put("equipmentFaults", equipmentFaultRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(email));
-        profile.put("maintenanceRequests", maintenanceRequestRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(email));
+        profile.put("assignedEquipment", workerEquipmentRepository.findByWorkerEmailIgnoreCase(user.email()));
+        profile.put("submittedHazards", hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
+        profile.put("equipmentFaults", equipmentFaultRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
+        profile.put("maintenanceRequests", maintenanceRequestRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
         profile.put("inspectionHistory", List.of(
             Map.of("title", "Daily pre-start inspection", "status", "Submitted"),
             Map.of("title", "PPE check", "status", "Completed")
@@ -82,17 +85,36 @@ public class WorkerController {
     }
 
     @PatchMapping("/api/workers/equipment/status")
-    public WorkerEquipment updateEquipmentStatus(@RequestBody Map<String, String> request) {
-        WorkerEquipment equipment = workerEquipmentRepository.findById(Long.valueOf(request.get("equipmentId")))
-            .orElseThrow();
-        equipment.setStatus(request.getOrDefault("status", "Operational"));
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public WorkerEquipment updateEquipmentStatus(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @Valid @RequestBody UpdateEquipmentStatusRequest request
+    ) {
+        Long equipmentId;
+        try {
+            equipmentId = Long.valueOf(request.equipmentId());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "equipmentId must be numeric");
+        }
+
+        WorkerEquipment equipment = workerEquipmentRepository.findById(equipmentId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Equipment not found"));
+
+        if (!equipment.getWorkerEmail().equalsIgnoreCase(user.email())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot update another worker's equipment");
+        }
+
+        String status = (request.status() == null || request.status().isBlank())
+            ? "Operational"
+            : request.status();
+        equipment.setStatus(status);
 
         WorkerEquipment saved = workerEquipmentRepository.save(equipment);
         auditLogService.record(
             "EQUIPMENT_STATUS_UPDATED",
-            "worker",
-            request.getOrDefault("actorName", "Unknown User"),
-            saved.getWorkerEmail(),
+            user.role(),
+            user.fullName(),
+            user.email(),
             "WorkerEquipment",
             saved.getId(),
             saved.getCode() + " set to " + saved.getStatus()
@@ -102,17 +124,21 @@ public class WorkerController {
     }
 
     @PostMapping("/api/workers/equipment/faults")
-    public EquipmentFault reportEquipmentFault(@RequestBody Map<String, String> request) {
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public EquipmentFault reportEquipmentFault(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @Valid @RequestBody ReportFaultRequest request
+    ) {
         EquipmentFault fault = equipmentFaultRepository.save(new EquipmentFault(
-            request.getOrDefault("workerEmail", ""),
-            request.getOrDefault("equipmentCode", "EQ-UNKNOWN"),
-            request.getOrDefault("description", "Equipment fault reported")
+            user.email(),
+            request.equipmentCode(),
+            request.description()
         ));
         auditLogService.record(
             "EQUIPMENT_FAULT_REPORTED",
-            "worker",
-            request.getOrDefault("workerName", "Unknown User"),
-            fault.getWorkerEmail(),
+            user.role(),
+            user.fullName(),
+            user.email(),
             "EquipmentFault",
             fault.getId(),
             fault.getEquipmentCode() + ": " + fault.getDescription()
@@ -122,17 +148,21 @@ public class WorkerController {
     }
 
     @PostMapping("/api/workers/equipment/maintenance")
-    public MaintenanceRequest requestMaintenance(@RequestBody Map<String, String> request) {
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public MaintenanceRequest requestMaintenance(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @Valid @RequestBody RequestMaintenanceRequest request
+    ) {
         MaintenanceRequest maintenanceRequest = maintenanceRequestRepository.save(new MaintenanceRequest(
-            request.getOrDefault("workerEmail", ""),
-            request.getOrDefault("equipmentCode", "EQ-UNKNOWN"),
-            request.getOrDefault("requestDetails", "Maintenance requested")
+            user.email(),
+            request.equipmentCode(),
+            request.requestDetails()
         ));
         auditLogService.record(
             "MAINTENANCE_REQUESTED",
-            "worker",
-            request.getOrDefault("workerName", "Unknown User"),
-            maintenanceRequest.getWorkerEmail(),
+            user.role(),
+            user.fullName(),
+            user.email(),
             "MaintenanceRequest",
             maintenanceRequest.getId(),
             maintenanceRequest.getEquipmentCode() + ": " + maintenanceRequest.getRequestDetails()
@@ -155,3 +185,4 @@ public class WorkerController {
         ));
     }
 }
+

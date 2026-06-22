@@ -1,6 +1,7 @@
 package MineOpsBackend.controller;
 
 import MineOpsBackend.repository.SiteRepository;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,6 +19,7 @@ public class DashboardController {
     }
 
     @GetMapping("/api/dashboard")
+    @PreAuthorize("isAuthenticated()")
     public Map<String, Object> getDashboard() {
         Map<String, Object> dashboard = new LinkedHashMap<>();
 

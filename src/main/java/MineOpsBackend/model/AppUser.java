@@ -28,16 +28,23 @@ public class AppUser {
     @Column(nullable = false)
     private String role;
 
+    private String assignedSite;
+
     private LocalDateTime createdAt;
 
     public AppUser() {
     }
 
     public AppUser(String fullName, String email, String passwordHash, String role) {
+        this(fullName, email, passwordHash, role, "Obuasi Mine");
+    }
+
+    public AppUser(String fullName, String email, String passwordHash, String role, String assignedSite) {
         this.fullName = fullName;
         this.email = email;
         this.passwordHash = passwordHash;
         this.role = role;
+        this.assignedSite = assignedSite;
         this.createdAt = LocalDateTime.now();
     }
 
@@ -77,6 +84,14 @@ public class AppUser {
         this.role = role;
     }
 
+    public String getAssignedSite() {
+        return assignedSite;
+    }
+
+    public void setAssignedSite(String assignedSite) {
+        this.assignedSite = assignedSite;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -85,3 +100,4 @@ public class AppUser {
         this.createdAt = createdAt;
     }
 }
+
