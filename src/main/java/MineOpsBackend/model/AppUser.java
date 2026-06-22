@@ -32,6 +32,8 @@ public class AppUser {
 
     private LocalDateTime createdAt;
 
+    private LocalDateTime sessionExpiresAt;
+
     public AppUser() {
     }
 
@@ -46,58 +48,35 @@ public class AppUser {
         this.role = role;
         this.assignedSite = assignedSite;
         this.createdAt = LocalDateTime.now();
+        if ("guest".equals(role)) {
+            this.sessionExpiresAt = LocalDateTime.now().plusHours(24);
+        }
     }
 
-    public Long getId() {
-        return id;
-    }
+    public Long getId() { return id; }
 
-    public String getFullName() {
-        return fullName;
-    }
+    public String getFullName() { return fullName; }
+    public void setFullName(String fullName) { this.fullName = fullName; }
 
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
-    public String getEmail() {
-        return email;
-    }
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
+    public String getRole() { return role; }
+    public void setRole(String role) { this.role = role; }
 
-    public String getPasswordHash() {
-        return passwordHash;
-    }
+    public String getAssignedSite() { return assignedSite; }
+    public void setAssignedSite(String assignedSite) { this.assignedSite = assignedSite; }
 
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public String getRole() {
-        return role;
-    }
+    public LocalDateTime getSessionExpiresAt() { return sessionExpiresAt; }
+    public void setSessionExpiresAt(LocalDateTime sessionExpiresAt) { this.sessionExpiresAt = sessionExpiresAt; }
 
-    public void setRole(String role) {
-        this.role = role;
-    }
-
-    public String getAssignedSite() {
-        return assignedSite;
-    }
-
-    public void setAssignedSite(String assignedSite) {
-        this.assignedSite = assignedSite;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public boolean isExpired() {
+        return sessionExpiresAt != null && LocalDateTime.now().isAfter(sessionExpiresAt);
     }
 }
-

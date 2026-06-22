@@ -20,8 +20,8 @@ import java.util.Set;
 public class AuthController {
 
     private static final Set<String> ALLOWED_ROLES = Set.of(
-    "worker",
-    "guest"
+        "worker",
+        "guest"
     );
 
     private final AppUserRepository appUserRepository;
@@ -70,6 +70,10 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
 
+        if (user.isExpired()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest session has expired. Contact your site administrator to renew access.");
+        }
+
         return authResponse(user);
     }
 
@@ -86,4 +90,3 @@ public class AuthController {
         );
     }
 }
-
