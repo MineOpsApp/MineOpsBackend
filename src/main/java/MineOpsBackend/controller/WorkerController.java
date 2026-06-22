@@ -1,12 +1,15 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.dto.LogEquipmentShiftRequest;
 import MineOpsBackend.dto.ReportFaultRequest;
 import MineOpsBackend.dto.RequestMaintenanceRequest;
 import MineOpsBackend.dto.UpdateEquipmentStatusRequest;
 import MineOpsBackend.model.EquipmentFault;
+import MineOpsBackend.model.EquipmentShiftLog;
 import MineOpsBackend.model.MaintenanceRequest;
 import MineOpsBackend.model.WorkerEquipment;
 import MineOpsBackend.repository.EquipmentFaultRepository;
+import MineOpsBackend.repository.EquipmentShiftLogRepository;
 import MineOpsBackend.repository.HazardReportRepository;
 import MineOpsBackend.repository.MaintenanceRequestRepository;
 import MineOpsBackend.repository.WorkerEquipmentRepository;
@@ -31,6 +34,7 @@ import java.util.Map;
 public class WorkerController {
 
     private final EquipmentFaultRepository equipmentFaultRepository;
+    private final EquipmentShiftLogRepository equipmentShiftLogRepository;
     private final HazardReportRepository hazardReportRepository;
     private final MaintenanceRequestRepository maintenanceRequestRepository;
     private final WorkerEquipmentRepository workerEquipmentRepository;
@@ -38,12 +42,14 @@ public class WorkerController {
 
     public WorkerController(
         EquipmentFaultRepository equipmentFaultRepository,
+        EquipmentShiftLogRepository equipmentShiftLogRepository,
         HazardReportRepository hazardReportRepository,
         MaintenanceRequestRepository maintenanceRequestRepository,
         WorkerEquipmentRepository workerEquipmentRepository,
         AuditLogService auditLogService
     ) {
         this.equipmentFaultRepository = equipmentFaultRepository;
+        this.equipmentShiftLogRepository = equipmentShiftLogRepository;
         this.hazardReportRepository = hazardReportRepository;
         this.maintenanceRequestRepository = maintenanceRequestRepository;
         this.workerEquipmentRepository = workerEquipmentRepository;
@@ -65,6 +71,7 @@ public class WorkerController {
         profile.put("submittedHazards", hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
         profile.put("equipmentFaults", equipmentFaultRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
         profile.put("maintenanceRequests", maintenanceRequestRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
+        profile.put("shiftLogs", equipmentShiftLogRepository.findByWorkerEmailIgnoreCaseOrderByLoggedAtDesc(user.email()));
         profile.put("inspectionHistory", List.of(
             Map.of("title", "Daily pre-start inspection", "status", "Submitted"),
             Map.of("title", "PPE check", "status", "Completed")
@@ -82,6 +89,41 @@ public class WorkerController {
         ));
 
         return profile;
+    }
+
+    @GetMapping("/api/workers/equipment/shift-logs")
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public List<EquipmentShiftLog> getShiftLogs(@AuthenticationPrincipal AuthenticatedUser user) {
+        return equipmentShiftLogRepository.findByWorkerEmailIgnoreCaseOrderByLoggedAtDesc(user.email());
+    }
+
+    @PostMapping("/api/workers/equipment/shift-log")
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public EquipmentShiftLog logEquipmentShift(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @Valid @RequestBody LogEquipmentShiftRequest request
+    ) {
+        EquipmentShiftLog log = equipmentShiftLogRepository.save(new EquipmentShiftLog(
+            request.equipmentCode(),
+            request.equipmentName(),
+            user.email(),
+            user.fullName(),
+            request.status(),
+            request.checkType(),
+            request.notes()
+        ));
+
+        auditLogService.record(
+            "EQUIPMENT_SHIFT_LOG",
+            user.role(),
+            user.fullName(),
+            user.email(),
+            "EquipmentShiftLog",
+            log.getId(),
+            request.checkType() + " — " + request.equipmentCode() + ": " + request.status()
+        );
+
+        return log;
     }
 
     @PatchMapping("/api/workers/equipment/status")
@@ -185,4 +227,3 @@ public class WorkerController {
         ));
     }
 }
-
