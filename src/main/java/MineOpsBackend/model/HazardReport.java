@@ -1,5 +1,6 @@
 package MineOpsBackend.model;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,6 +16,9 @@ public class HazardReport {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(columnDefinition = "TEXT")
+    private String photoData;
 
     private String reportedByRole;
     private String reportedByName;
@@ -64,6 +68,9 @@ public class HazardReport {
     }
 
     public Long getId() { return id; }
+
+    public String getPhotoData() { return photoData; }
+    public void setPhotoData(String photoData) { this.photoData = photoData; }
 
     public String getReportedByRole() { return reportedByRole; }
     public void setReportedByRole(String reportedByRole) { this.reportedByRole = reportedByRole; }

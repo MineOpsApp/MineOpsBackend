@@ -11,5 +11,6 @@ public record CreateHazardRequest(
     @Pattern(regexp = "Low|Medium|High|Critical", message = "Severity must be Low, Medium, High, or Critical")
     String severity,
     Double latitude,
-    Double longitude
+    Double longitude,
+    String photoData
 ) {}
