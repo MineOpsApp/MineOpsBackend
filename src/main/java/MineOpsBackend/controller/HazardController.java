@@ -70,6 +70,8 @@ public class HazardController {
     request.description(),
     request.severity()
 );
+report.setLatitude(request.latitude());
+report.setLongitude(request.longitude());
 
         HazardReport saved = hazardReportRepository.save(report);
         auditLogService.record(

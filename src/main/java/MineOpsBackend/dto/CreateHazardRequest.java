@@ -9,5 +9,7 @@ public record CreateHazardRequest(
     @NotBlank String location,
     @NotBlank String description,
     @Pattern(regexp = "Low|Medium|High|Critical", message = "Severity must be Low, Medium, High, or Critical")
-    String severity
+    String severity,
+    Double latitude,
+    Double longitude
 ) {}
