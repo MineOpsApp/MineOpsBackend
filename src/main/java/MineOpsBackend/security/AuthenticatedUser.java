@@ -5,7 +5,8 @@ public record AuthenticatedUser(
     String fullName,
     String email,
     String role,
-    String assignedSite
+    String assignedSite,
+    String guestSubRole
 ) {
     public String authority() {
         return authorityFor(role);

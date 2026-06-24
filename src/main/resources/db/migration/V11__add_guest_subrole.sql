@@ -1,0 +1,1 @@
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS guest_sub_role VARCHAR(50);

@@ -1,5 +1,6 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.dto.CreateGuestRequest;
 import MineOpsBackend.dto.RenewGuestSessionRequest;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.repository.AppUserRepository;
@@ -9,6 +10,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,6 +24,7 @@ public class AdminController {
 
     private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public AdminController(AppUserRepository appUserRepository, AuditLogService auditLogService) {
         this.appUserRepository = appUserRepository;
@@ -61,6 +64,49 @@ public class AdminController {
             "fullName", guest.getFullName(),
             "sessionExpiresAt", newExpiry.toString(),
             "hoursGranted", hours
+        );
+    }
+
+    @PostMapping("/api/admin/guests/create")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public Map<String, Object> createGuestAccount(
+        @AuthenticationPrincipal AuthenticatedUser admin,
+        @Valid @RequestBody CreateGuestRequest request
+    ) {
+        String email = request.email().trim().toLowerCase();
+        if (appUserRepository.existsByEmailIgnoreCase(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
+        }
+
+        AppUser guest = new AppUser(
+            request.fullName().trim(),
+            email,
+            passwordEncoder.encode(request.password()),
+            "guest",
+            request.assignedSite()
+        );
+        guest.setGuestSubRole(request.guestSubRole());
+        guest.setSessionExpiresAt(LocalDateTime.now().plusHours(
+            request.sessionHours() != null ? request.sessionHours() : 24
+        ));
+        appUserRepository.save(guest);
+
+        auditLogService.record(
+            "GUEST_ACCOUNT_CREATED",
+            admin.role(),
+            admin.fullName(),
+            admin.email(),
+            "AppUser",
+            guest.getId(),
+            email + " as " + request.guestSubRole()
+        );
+
+        return Map.of(
+            "id", guest.getId(),
+            "email", guest.getEmail(),
+            "fullName", guest.getFullName(),
+            "guestSubRole", guest.getGuestSubRole(),
+            "sessionExpiresAt", guest.getSessionExpiresAt().toString()
         );
     }
 }

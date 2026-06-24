@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.LinkedHashMap;
 
 @RestController
 public class AuthController {
@@ -57,6 +59,11 @@ public class AuthController {
             assignedSite
         ));
 
+        if ("guest".equals(request.role()) && request.guestSubRole() != null) {
+    user.setGuestSubRole(request.guestSubRole());
+    appUserRepository.save(user);
+}
+
         return authResponse(user);
     }
 
@@ -78,15 +85,16 @@ public class AuthController {
     }
 
     private Map<String, Object> authResponse(AppUser user) {
-        return Map.of(
-            "token", jwtService.createToken(user),
-            "user", Map.of(
-                "id", user.getId(),
-                "fullName", user.getFullName(),
-                "email", user.getEmail(),
-                "role", user.getRole(),
-                "assignedSite", user.getAssignedSite()
-            )
-        );
-    }
+    Map<String, Object> userMap = new LinkedHashMap<>();
+    userMap.put("id", user.getId());
+    userMap.put("fullName", user.getFullName());
+    userMap.put("email", user.getEmail());
+    userMap.put("role", user.getRole());
+    userMap.put("assignedSite", user.getAssignedSite());
+    userMap.put("guestSubRole", user.getGuestSubRole());
+    return Map.of(
+        "token", jwtService.createToken(user),
+        "user", userMap
+    );
+}
 }

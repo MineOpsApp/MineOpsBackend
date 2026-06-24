@@ -39,6 +39,7 @@ public class JwtService {
             payload.put("email", user.getEmail());
             payload.put("role", user.getRole());
             payload.put("site", user.getAssignedSite());
+            payload.put("guestSubRole", user.getGuestSubRole());
             payload.put("exp", Instant.now().plusSeconds(60 * 60 * 8).getEpochSecond());
 
             String headerPart = encode(objectMapper.writeValueAsBytes(header));
@@ -74,11 +75,12 @@ public class JwtService {
             }
 
             return new JwtClaims(
-                asLong(payload.get("sub")),
-                asString(payload.get("email")),
-                asString(payload.get("role")),
-                payload.get("site") == null ? null : String.valueOf(payload.get("site"))
-            );
+    asLong(payload.get("sub")),
+    asString(payload.get("email")),
+    asString(payload.get("role")),
+    payload.get("site") == null ? null : String.valueOf(payload.get("site")),
+    payload.get("guestSubRole") == null ? null : String.valueOf(payload.get("guestSubRole"))
+);
         } catch (Exception error) {
             throw new IllegalArgumentException("Invalid token", error);
         }
@@ -122,7 +124,7 @@ public class JwtService {
         return String.valueOf(value);
     }
 
-    public record JwtClaims(Long userId, String email, String role, String site) {
+    public record JwtClaims(Long userId, String email, String role, String site , String guestSubRole) {
     }
 }
 

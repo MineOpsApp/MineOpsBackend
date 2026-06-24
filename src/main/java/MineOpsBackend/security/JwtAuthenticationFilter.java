@@ -50,13 +50,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 throw new IllegalArgumentException("Token user does not match stored user");
             }
 
-            AuthenticatedUser principal = new AuthenticatedUser(
-                user.getId(),
-                user.getFullName(),
-                user.getEmail(),
-                user.getRole(),
-                user.getAssignedSite()
-            );
+           AuthenticatedUser principal = new AuthenticatedUser(
+    user.getId(),
+    user.getFullName(),
+    user.getEmail(),
+    user.getRole(),
+    user.getAssignedSite(),
+    user.getGuestSubRole()
+);
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 principal,
                 null,

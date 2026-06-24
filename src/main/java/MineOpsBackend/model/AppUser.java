@@ -34,6 +34,8 @@ public class AppUser {
 
     private LocalDateTime sessionExpiresAt;
 
+    private String guestSubRole;
+
     public AppUser() {
     }
 
@@ -75,6 +77,10 @@ public class AppUser {
 
     public LocalDateTime getSessionExpiresAt() { return sessionExpiresAt; }
     public void setSessionExpiresAt(LocalDateTime sessionExpiresAt) { this.sessionExpiresAt = sessionExpiresAt; }
+
+    public String getGuestSubRole() { return guestSubRole; }
+public void setGuestSubRole(String guestSubRole) { this.guestSubRole = guestSubRole; }
+
 
     public boolean isExpired() {
         return sessionExpiresAt != null && LocalDateTime.now().isAfter(sessionExpiresAt);
