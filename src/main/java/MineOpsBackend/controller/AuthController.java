@@ -76,7 +76,9 @@ public class AuthController {
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
         }
-
+System.out.println("Current UTC time: " + java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
+System.out.println("Session expires at: " + user.getSessionExpiresAt());
+System.out.println("Is expired: " + user.isExpired());
         if (user.isExpired()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest session has expired. Contact your site administrator to renew access.");
         }

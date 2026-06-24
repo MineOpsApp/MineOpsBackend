@@ -82,7 +82,8 @@ public class AppUser {
 public void setGuestSubRole(String guestSubRole) { this.guestSubRole = guestSubRole; }
 
 
-    public boolean isExpired() {
-        return sessionExpiresAt != null && LocalDateTime.now().isAfter(sessionExpiresAt);
-    }
+
+       public boolean isExpired() {
+    return sessionExpiresAt != null && LocalDateTime.now(java.time.ZoneOffset.UTC).isAfter(sessionExpiresAt);
+} 
 }
