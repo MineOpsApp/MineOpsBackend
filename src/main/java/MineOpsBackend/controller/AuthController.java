@@ -4,14 +4,17 @@ import MineOpsBackend.dto.LoginRequest;
 import MineOpsBackend.dto.RegisterRequest;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.repository.AppUserRepository;
+import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.JwtService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -85,6 +88,7 @@ System.out.println("Is expired: " + user.isExpired());
 
         return authResponse(user);
     }
+    
 
     private Map<String, Object> authResponse(AppUser user) {
     Map<String, Object> userMap = new LinkedHashMap<>();
@@ -98,5 +102,17 @@ System.out.println("Is expired: " + user.isExpired());
         "token", jwtService.createToken(user),
         "user", userMap
     );
+}
+@PostMapping("/api/auth/push-token")
+@PreAuthorize("isAuthenticated()")
+public Map<String, Object> savePushToken(
+    @AuthenticationPrincipal AuthenticatedUser user,
+    @RequestBody Map<String, String> body
+) {
+    AppUser appUser = appUserRepository.findByEmailIgnoreCase(user.email())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    appUser.setPushToken(body.get("token"));
+    appUserRepository.save(appUser);
+    return Map.of("success", true);
 }
 }

@@ -36,6 +36,8 @@ public class AppUser {
 
     private String guestSubRole;
 
+    private String pushToken;
+
     public AppUser() {
     }
 
@@ -79,8 +81,10 @@ public class AppUser {
     public void setSessionExpiresAt(LocalDateTime sessionExpiresAt) { this.sessionExpiresAt = sessionExpiresAt; }
 
     public String getGuestSubRole() { return guestSubRole; }
-public void setGuestSubRole(String guestSubRole) { this.guestSubRole = guestSubRole; }
+    public void setGuestSubRole(String guestSubRole) { this.guestSubRole = guestSubRole; }
 
+    public String getPushToken() { return pushToken; }
+    public void setPushToken(String pushToken) { this.pushToken = pushToken; }
 
 
        public boolean isExpired() {

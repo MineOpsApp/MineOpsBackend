@@ -1,12 +1,15 @@
 package MineOpsBackend.controller;
 
 import MineOpsBackend.dto.CreateNoticeRequest;
+import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.Notice;
 import MineOpsBackend.model.NoticeSeen;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.NoticeRepository;
 import MineOpsBackend.repository.NoticeSeenRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.PushNotificationService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -30,16 +33,22 @@ public class NoticeController {
 
     private final NoticeRepository noticeRepository;
     private final NoticeSeenRepository noticeSeenRepository;
+    private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
+    private final PushNotificationService pushNotificationService;
 
     public NoticeController(
         NoticeRepository noticeRepository,
         NoticeSeenRepository noticeSeenRepository,
-        AuditLogService auditLogService
+        AppUserRepository appUserRepository,
+        AuditLogService auditLogService,
+        PushNotificationService pushNotificationService
     ) {
         this.noticeRepository = noticeRepository;
         this.noticeSeenRepository = noticeSeenRepository;
+        this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
+        this.pushNotificationService = pushNotificationService;
     }
 
     @GetMapping("/api/notices")
@@ -78,6 +87,25 @@ public class NoticeController {
             saved.getId(),
             saved.getTitle()
         );
+
+        // Notify all workers on the same site
+        try {
+            List<String> tokens = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+                .stream()
+                .filter(u -> "worker".equals(u.getRole()) || "guest".equals(u.getRole()))
+                .map(AppUser::getPushToken)
+                .filter(t -> t != null && !t.isBlank())
+                .collect(Collectors.toList());
+
+            pushNotificationService.sendToTokens(
+                tokens,
+                "📢 New Notice — " + user.assignedSite(),
+                saved.getTitle() + ": " + saved.getMessage(),
+                "default"
+            );
+        } catch (Exception e) {
+            System.err.println("Push notification failed for notice: " + e.getMessage());
+        }
 
         return noticeResponse(saved, noticeSeenRepository.findByNoticeIdOrderBySeenAtDesc(saved.getId()));
     }
@@ -121,7 +149,6 @@ public class NoticeController {
         response.put("postedByRole", notice.getPostedByRole());
         response.put("createdAt", notice.getCreatedAt());
         response.put("seenBy", seenBy);
-
         return response;
     }
 }

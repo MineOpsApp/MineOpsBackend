@@ -3,10 +3,13 @@ package MineOpsBackend.controller;
 import MineOpsBackend.dto.CloseHazardRequest;
 import MineOpsBackend.dto.CreateHazardRequest;
 import MineOpsBackend.dto.ReviewHazardRequest;
+import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.HazardReport;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.HazardReportRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.PushNotificationService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,16 +26,26 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 public class HazardController {
 
     private final HazardReportRepository hazardReportRepository;
+    private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
+    private final PushNotificationService pushNotificationService;
 
-    public HazardController(HazardReportRepository hazardReportRepository, AuditLogService auditLogService) {
+    public HazardController(
+        HazardReportRepository hazardReportRepository,
+        AppUserRepository appUserRepository,
+        AuditLogService auditLogService,
+        PushNotificationService pushNotificationService
+    ) {
         this.hazardReportRepository = hazardReportRepository;
+        this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
+        this.pushNotificationService = pushNotificationService;
     }
 
     @GetMapping("/api/hazards")
@@ -41,7 +54,6 @@ public class HazardController {
         if ("worker".equals(user.role())) {
             return hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(user.email(), pageable);
         }
-
         return hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite(), pageable);
     }
 
@@ -61,18 +73,18 @@ public class HazardController {
         @Valid @RequestBody CreateHazardRequest request
     ) {
         HazardReport report = new HazardReport(
-    user.role(),
-    user.fullName(),
-    user.email(),
-    request.hazardType(),
-    request.site(),
-    request.location(),
-    request.description(),
-    request.severity()
-);
-report.setLatitude(request.latitude());
-report.setLongitude(request.longitude());
-report.setPhotoData(request.photoData());
+            user.role(),
+            user.fullName(),
+            user.email(),
+            request.hazardType(),
+            request.site(),
+            request.location(),
+            request.description(),
+            request.severity()
+        );
+        report.setLatitude(request.latitude());
+        report.setLongitude(request.longitude());
+        report.setPhotoData(request.photoData());
 
         HazardReport saved = hazardReportRepository.save(report);
         auditLogService.record(
@@ -84,6 +96,29 @@ report.setPhotoData(request.photoData());
             saved.getId(),
             saved.getHazardType() + " at " + saved.getLocation()
         );
+
+        // Send push notification for High and Critical hazards
+        try {
+            String severity = request.severity() != null ? request.severity() : "Medium";
+            if ("High".equals(severity) || "Critical".equals(severity)) {
+                List<String> tokens = appUserRepository.findByAssignedSiteIgnoreCase(request.site())
+                    .stream()
+                    .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
+                    .map(AppUser::getPushToken)
+                    .filter(t -> t != null && !t.isBlank())
+                    .collect(Collectors.toList());
+
+                String emoji = "Critical".equals(severity) ? "🔴" : "🟠";
+                pushNotificationService.sendToTokens(
+                    tokens,
+                    emoji + " " + severity + " Hazard — " + request.site(),
+                    user.fullName() + " reported: " + request.hazardType() + " at " + request.location(),
+                    "default"
+                );
+            }
+        } catch (Exception e) {
+            System.err.println("Push notification failed for hazard: " + e.getMessage());
+        }
 
         return saved;
     }
