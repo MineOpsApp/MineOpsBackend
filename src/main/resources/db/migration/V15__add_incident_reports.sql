@@ -1,0 +1,22 @@
+CREATE TABLE incident_reports (
+    id BIGSERIAL PRIMARY KEY,
+    reported_by_email VARCHAR(255),
+    reported_by_name VARCHAR(255),
+    reported_by_role VARCHAR(50),
+    site VARCHAR(255),
+    zone VARCHAR(100),
+    category VARCHAR(50) NOT NULL,
+    severity VARCHAR(20) NOT NULL,
+    description TEXT NOT NULL,
+    involved_persons TEXT,
+    first_aid_given BOOLEAN DEFAULT FALSE,
+    hospital_required BOOLEAN DEFAULT FALSE,
+    immediate_action TEXT,
+    status VARCHAR(30) NOT NULL DEFAULT 'Open',
+    latitude DOUBLE PRECISION,
+    longitude DOUBLE PRECISION,
+    photo_data TEXT,
+    incident_at TIMESTAMP NOT NULL DEFAULT now(),
+    reported_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
