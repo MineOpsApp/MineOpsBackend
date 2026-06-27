@@ -11,10 +11,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import java.util.List;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -109,4 +111,23 @@ public class AdminController {
             "sessionExpiresAt", guest.getSessionExpiresAt().toString()
         );
     }
+
+    @GetMapping("/api/admin/guests")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public List<Map<String, Object>> getGuests(@AuthenticationPrincipal AuthenticatedUser admin) {
+    return appUserRepository.findByAssignedSiteIgnoreCase(admin.assignedSite())
+        .stream()
+        .filter(u -> "guest".equals(u.getRole()))
+        .map(u -> {
+            Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("id", u.getId());
+            map.put("fullName", u.getFullName());
+            map.put("email", u.getEmail());
+            map.put("guestSubRole", u.getGuestSubRole());
+            map.put("sessionExpiresAt", u.getSessionExpiresAt() != null ? u.getSessionExpiresAt().toString() : null);
+            map.put("expired", u.isExpired());
+            return map;
+        })
+        .collect(java.util.stream.Collectors.toList());
+}
 }
