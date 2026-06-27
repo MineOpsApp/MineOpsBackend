@@ -115,20 +115,25 @@ public class IncidentController {
     @PatchMapping("/api/incidents/{id}/status")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public IncidentReport updateStatus(
+        
         @AuthenticationPrincipal AuthenticatedUser user,
         @PathVariable Long id,
         @Valid @RequestBody UpdateIncidentStatusRequest request
+
+        
     ) {
         IncidentReport report = incidentReportRepository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Incident report not found"));
+    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Incident report not found"));
 
-        report.setStatus(request.status());
-        report.setUpdatedAt(LocalDateTime.now());
-        IncidentReport saved = incidentReportRepository.save(report);
-
-        auditLogService.record("INCIDENT_STATUS_UPDATED", user.role(), user.fullName(), user.email(),
-            "IncidentReport", id, request.status());
-
-        return saved;
-    }
+report.setStatus(request.status());
+report.setUpdatedAt(LocalDateTime.now());
+if (request.notes() != null && !request.notes().isBlank()) {
+    report.setInvestigationNotes(request.notes());
 }
+IncidentReport saved = incidentReportRepository.save(report);
+
+auditLogService.record("INCIDENT_STATUS_UPDATED", user.role(), user.fullName(), user.email(),
+    "IncidentReport", id, request.status());
+
+return saved;
+    }}

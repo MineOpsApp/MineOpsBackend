@@ -36,6 +36,9 @@ public class IncidentReport {
     @Column(columnDefinition = "TEXT")
     private String photoData;
 
+    @Column(columnDefinition = "TEXT")
+    private String investigationNotes;
+
     private LocalDateTime incidentAt;
     private LocalDateTime reportedAt;
     private LocalDateTime updatedAt;
@@ -110,4 +113,7 @@ public class IncidentReport {
     public void setReportedAt(LocalDateTime v) { this.reportedAt = v; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime v) { this.updatedAt = v; }
+
+    public String getInvestigationNotes() { return investigationNotes; }
+    public void setInvestigationNotes(String v) { this.investigationNotes = v; }
 }
