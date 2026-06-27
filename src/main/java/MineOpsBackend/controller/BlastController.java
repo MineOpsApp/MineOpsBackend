@@ -165,4 +165,11 @@ public class BlastController {
 
         return saved;
     }
+
+@GetMapping("/api/blasts/history")
+@PreAuthorize("isAuthenticated()")
+public List<BlastSchedule> getBlastHistory(@AuthenticationPrincipal AuthenticatedUser user) {
+    return blastScheduleRepository.findBySiteOrderByBlastTimeDesc(user.assignedSite());
+}
+
 }
