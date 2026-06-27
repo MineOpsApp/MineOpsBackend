@@ -1,0 +1,1 @@
+ALTER TABLE notices ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'Operational';

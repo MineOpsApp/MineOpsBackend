@@ -76,6 +76,7 @@ public class NoticeController {
             request.message(),
             user.role()
         );
+        notice.setCategory(request.category() != null ? request.category() : "Operational");
 
         Notice saved = noticeRepository.save(notice);
         auditLogService.record(
@@ -149,6 +150,7 @@ public class NoticeController {
         response.put("postedByRole", notice.getPostedByRole());
         response.put("createdAt", notice.getCreatedAt());
         response.put("seenBy", seenBy);
+        response.put("category", notice.getCategory());
         return response;
     }
 }

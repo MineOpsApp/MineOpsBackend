@@ -23,6 +23,7 @@ public class Notice {
     private String postedByRole;
 
     private LocalDateTime createdAt;
+    private String category;
 
     public Notice() {
     }
@@ -69,4 +70,7 @@ public class Notice {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public String getCategory() { return category; }
+public void setCategory(String v) { this.category = v; }
 }
