@@ -38,6 +38,8 @@ public class AppUser {
 
     private String pushToken;
 
+    private Boolean active = true;
+
     public AppUser() {
     }
 
@@ -90,4 +92,11 @@ public class AppUser {
        public boolean isExpired() {
     return sessionExpiresAt != null && LocalDateTime.now(java.time.ZoneOffset.UTC).isAfter(sessionExpiresAt);
 } 
+
+public Boolean getActive() { return active; }
+public void setActive(Boolean v) { this.active = v; }
+
+
+
+
 }

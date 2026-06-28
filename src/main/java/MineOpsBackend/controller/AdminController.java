@@ -162,4 +162,33 @@ public Map<String, Object> resetPassword(
     );
 }
 
+@PostMapping("/api/admin/users/suspend")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public Map<String, Object> suspendUser(
+    @AuthenticationPrincipal AuthenticatedUser admin,
+    @RequestBody Map<String, String> body
+) {
+    String email = body.get("email");
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found with that email"));
+
+    if ("supervisor".equals(user.getRole()) || "safetyOfficer".equals(user.getRole())) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot suspend supervisors or safety officers");
+    }
+
+    boolean suspend = !"false".equals(body.get("suspend")) ;
+    user.setActive(!suspend);
+    appUserRepository.save(user);
+
+    auditLogService.record(suspend ? "ACCOUNT_SUSPENDED" : "ACCOUNT_REINSTATED",
+        admin.role(), admin.fullName(), admin.email(),
+        "AppUser", user.getId(), email.trim());
+
+    return Map.of(
+        "email", user.getEmail(),
+        "fullName", user.getFullName(),
+        "active", user.getActive()
+    );
+}
+
 }

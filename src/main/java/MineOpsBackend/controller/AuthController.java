@@ -71,23 +71,25 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/login")
-    public Map<String, Object> login(@Valid @RequestBody LoginRequest request) {
-        String email = request.email().trim().toLowerCase();
-        AppUser user = appUserRepository.findByEmailIgnoreCase(email)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
+public Map<String, Object> login(@Valid @RequestBody LoginRequest request) {
+    String email = request.email().trim().toLowerCase();
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
 
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
-        }
-System.out.println("Current UTC time: " + java.time.LocalDateTime.now(java.time.ZoneOffset.UTC));
-System.out.println("Session expires at: " + user.getSessionExpiresAt());
-System.out.println("Is expired: " + user.isExpired());
-        if (user.isExpired()) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest session has expired. Contact your site administrator to renew access.");
-        }
-
-        return authResponse(user);
+    if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
     }
+
+    if (user.isExpired()) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest session has expired. Contact your site administrator to renew access.");
+    }
+
+    if (Boolean.FALSE.equals(user.getActive())) {
+    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account has been suspended. Contact your site administrator.");
+}
+
+    return authResponse(user);
+}
     
 
     private Map<String, Object> authResponse(AppUser user) {
