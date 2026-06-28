@@ -130,4 +130,36 @@ public List<Map<String, Object>> getGuests(@AuthenticationPrincipal Authenticate
         })
         .collect(java.util.stream.Collectors.toList());
 }
+@PostMapping("/api/admin/users/reset-password")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public Map<String, Object> resetPassword(
+    @AuthenticationPrincipal AuthenticatedUser admin,
+    @RequestBody Map<String, String> body
+) {
+    String email = body.get("email");
+    if (email == null || email.isBlank()) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+    }
+
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found with that email"));
+
+    if ("supervisor".equals(user.getRole()) || "safetyOfficer".equals(user.getRole())) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot reset passwords for supervisors or safety officers");
+    }
+
+    String tempPassword = "Reset" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase() + "!";
+    user.setPasswordHash(passwordEncoder.encode(tempPassword));
+    appUserRepository.save(user);
+
+    auditLogService.record("PASSWORD_RESET", admin.role(), admin.fullName(), admin.email(),
+        "AppUser", user.getId(), email.trim());
+
+    return Map.of(
+        "email", user.getEmail(),
+        "fullName", user.getFullName(),
+        "temporaryPassword", tempPassword
+    );
+}
+
 }
