@@ -34,31 +34,33 @@ public class ShiftLogController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @Valid @RequestBody SubmitShiftLogRequest request
     ) {
-        ShiftLog log = shiftLogRepository.save(new ShiftLog(
-            user.email(),
-            user.fullName(),
-            user.assignedSite(),
-            request.zone(),
-            request.shiftType(),
-            request.mineralType(),
-            request.volumeExtracted(),
-            request.unit(),
-            request.equipmentCode(),
-            request.equipmentName(),
-            request.notes()
-        ));
+        ShiftLog log = new ShiftLog(
+    user.email(),
+    user.fullName(),
+    user.assignedSite(),
+    request.zone(),
+    request.shiftType(),
+    request.mineralType(),
+    request.volumeExtracted(),
+    request.unit(),
+    request.equipmentCode(),
+    request.equipmentName(),
+    request.notes()
+);
+log.setShiftDate(request.shiftDate());
+ShiftLog saved = shiftLogRepository.save(log);
 
         auditLogService.record(
-            "SHIFT_LOG_SUBMITTED",
-            user.role(),
-            user.fullName(),
-            user.email(),
-            "ShiftLog",
-            log.getId(),
-            request.mineralType() + " " + request.volumeExtracted() + request.unit() + " — " + request.zone()
-        );
+    "SHIFT_LOG_SUBMITTED",
+    user.role(),
+    user.fullName(),
+    user.email(),
+    "ShiftLog",
+    saved.getId(),
+    request.mineralType() + " " + request.volumeExtracted() + request.unit() + " — " + request.zone()
+);
 
-        return log;
+return saved;
     }
 
     @GetMapping("/api/shift-logs/mine")

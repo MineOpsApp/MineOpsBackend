@@ -1,0 +1,1 @@
+ALTER TABLE shift_logs ADD COLUMN IF NOT EXISTS shift_date VARCHAR(30);

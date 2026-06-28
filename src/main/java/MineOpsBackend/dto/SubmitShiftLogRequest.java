@@ -12,5 +12,6 @@ public record SubmitShiftLogRequest(
     @NotBlank String unit,
     @NotBlank String equipmentCode,
     @NotBlank String equipmentName,
-    String notes
+    String notes,
+    String shiftDate
 ) {}

@@ -28,11 +28,10 @@ public class ShiftLog {
     private String equipmentName;
     private String notes;
     private String status;
-    private LocalDateTime shiftDate;
+    private String shiftDate;
     private LocalDateTime submittedAt;
 
-    public ShiftLog() {
-    }
+    public ShiftLog() {}
 
     public ShiftLog(
         String workerEmail,
@@ -59,37 +58,36 @@ public class ShiftLog {
         this.equipmentName = equipmentName;
         this.notes = notes;
         this.status = "SUBMITTED";
-        this.shiftDate = LocalDateTime.now();
         this.submittedAt = LocalDateTime.now();
     }
 
     public Long getId() { return id; }
     public String getWorkerEmail() { return workerEmail; }
-    public void setWorkerEmail(String workerEmail) { this.workerEmail = workerEmail; }
+    public void setWorkerEmail(String v) { this.workerEmail = v; }
     public String getWorkerName() { return workerName; }
-    public void setWorkerName(String workerName) { this.workerName = workerName; }
+    public void setWorkerName(String v) { this.workerName = v; }
     public String getSite() { return site; }
-    public void setSite(String site) { this.site = site; }
+    public void setSite(String v) { this.site = v; }
     public String getZone() { return zone; }
-    public void setZone(String zone) { this.zone = zone; }
+    public void setZone(String v) { this.zone = v; }
     public String getShiftType() { return shiftType; }
-    public void setShiftType(String shiftType) { this.shiftType = shiftType; }
+    public void setShiftType(String v) { this.shiftType = v; }
     public String getMineralType() { return mineralType; }
-    public void setMineralType(String mineralType) { this.mineralType = mineralType; }
+    public void setMineralType(String v) { this.mineralType = v; }
     public java.math.BigDecimal getVolumeExtracted() { return volumeExtracted; }
-public void setVolumeExtracted(java.math.BigDecimal volumeExtracted) { this.volumeExtracted = volumeExtracted; }
+    public void setVolumeExtracted(java.math.BigDecimal v) { this.volumeExtracted = v; }
     public String getUnit() { return unit; }
-    public void setUnit(String unit) { this.unit = unit; }
+    public void setUnit(String v) { this.unit = v; }
     public String getEquipmentCode() { return equipmentCode; }
-    public void setEquipmentCode(String equipmentCode) { this.equipmentCode = equipmentCode; }
+    public void setEquipmentCode(String v) { this.equipmentCode = v; }
     public String getEquipmentName() { return equipmentName; }
-    public void setEquipmentName(String equipmentName) { this.equipmentName = equipmentName; }
+    public void setEquipmentName(String v) { this.equipmentName = v; }
     public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
+    public void setNotes(String v) { this.notes = v; }
     public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
-    public LocalDateTime getShiftDate() { return shiftDate; }
-    public void setShiftDate(LocalDateTime shiftDate) { this.shiftDate = shiftDate; }
+    public void setStatus(String v) { this.status = v; }
+    public String getShiftDate() { return shiftDate; }
+    public void setShiftDate(String v) { this.shiftDate = v; }
     public LocalDateTime getSubmittedAt() { return submittedAt; }
-    public void setSubmittedAt(LocalDateTime submittedAt) { this.submittedAt = submittedAt; }
+    public void setSubmittedAt(LocalDateTime v) { this.submittedAt = v; }
 }
