@@ -24,6 +24,9 @@ public class Notice {
 
     private LocalDateTime createdAt;
     private String category;
+    private java.time.LocalDateTime expiresAt;
+public java.time.LocalDateTime getExpiresAt() { return expiresAt; }
+public void setExpiresAt(java.time.LocalDateTime v) { this.expiresAt = v; }
 
     public Notice() {
     }

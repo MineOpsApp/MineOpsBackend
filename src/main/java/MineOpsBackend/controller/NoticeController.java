@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,19 +52,24 @@ public class NoticeController {
         this.pushNotificationService = pushNotificationService;
     }
 
-    @GetMapping("/api/notices")
-    @PreAuthorize("isAuthenticated()")
-    public Page<Map<String, Object>> getNotices(Pageable pageable) {
-        Page<Notice> noticesPage = noticeRepository.findAllByOrderByCreatedAtDesc(pageable);
-        List<Long> noticeIds = noticesPage.getContent().stream().map(Notice::getId).toList();
+   @GetMapping("/api/notices")
+@PreAuthorize("isAuthenticated()")
+public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
+    Page<Notice> noticesPage = "worker".equals(user.role()) || "guest".equals(user.role())
+        ? noticeRepository.findActiveNotices(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC), pageable)
+        : noticeRepository.findAllByOrderByCreatedAtDesc(pageable);
 
-        Map<Long, List<NoticeSeen>> seenByNotice = noticeSeenRepository
-            .findByNoticeIdInOrderBySeenAtDesc(noticeIds)
-            .stream()
-            .collect(Collectors.groupingBy(NoticeSeen::getNoticeId));
+    List<Long> noticeIds = noticesPage.getContent().stream().map(Notice::getId).toList();
 
-        return noticesPage.map((notice) -> noticeResponse(notice, seenByNotice.getOrDefault(notice.getId(), List.of())));
-    }
+    Map<Long, List<NoticeSeen>> seenByNotice = noticeSeenRepository
+        .findByNoticeIdInOrderBySeenAtDesc(noticeIds)
+        .stream()
+        .collect(Collectors.groupingBy(NoticeSeen::getNoticeId));
+
+    return noticesPage.map((notice) ->
+        noticeResponse(notice, seenByNotice.getOrDefault(notice.getId(), List.of()))
+    );
+}
 
     @PostMapping("/api/notices")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
@@ -77,6 +83,11 @@ public class NoticeController {
             user.role()
         );
         notice.setCategory(request.category() != null ? request.category() : "Operational");
+        if (request.expiresAt() != null && !request.expiresAt().isBlank()) {
+    try {
+        notice.setExpiresAt(java.time.LocalDateTime.parse(request.expiresAt(), java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+    } catch (Exception ignored) {}
+}
 
         Notice saved = noticeRepository.save(notice);
         auditLogService.record(
@@ -153,4 +164,18 @@ public class NoticeController {
         response.put("category", notice.getCategory());
         return response;
     }
+
+    @DeleteMapping("/api/notices/{id}")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public Map<String, Object> deleteNotice(
+    @AuthenticationPrincipal AuthenticatedUser user,
+    @PathVariable Long id
+) {
+    Notice notice = noticeRepository.findById(id)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notice not found"));
+    noticeRepository.delete(notice);
+    auditLogService.record("NOTICE_DELETED", user.role(), user.fullName(), user.email(),
+        "Notice", id, notice.getTitle());
+    return Map.of("deleted", true, "id", id);
+}
 }
