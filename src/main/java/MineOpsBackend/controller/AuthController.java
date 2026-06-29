@@ -15,7 +15,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -37,6 +38,8 @@ public class AuthController {
         this.appUserRepository = appUserRepository;
         this.jwtService = jwtService;
     }
+
+    
 
     @PostMapping("/api/auth/register")
     public Map<String, Object> register(@Valid @RequestBody RegisterRequest request) {
@@ -71,26 +74,26 @@ public class AuthController {
     }
 
     @PostMapping("/api/auth/login")
-public Map<String, Object> login(@Valid @RequestBody LoginRequest request) {
+public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
+   
     String email = request.email().trim().toLowerCase();
-    AppUser user = appUserRepository.findByEmailIgnoreCase(email)
-        .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password"));
-
-    if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password");
-    }
-
-    if (user.isExpired()) {
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest session has expired. Contact your site administrator to renew access.");
-    }
-
-    if (Boolean.FALSE.equals(user.getActive())) {
-    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account has been suspended. Contact your site administrator.");
-}
-
-    return authResponse(user);
-}
     
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email).orElse(null);
+    
+    if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        return ResponseEntity.status(401).body(Map.of("error", "INVALID_CREDENTIALS"));
+    }
+    
+    if (Boolean.FALSE.equals(user.getActive())) {
+        return ResponseEntity.status(200).body(Map.of("error", "SUSPENDED"));
+    }
+    
+    if (user.isExpired()) {
+        return ResponseEntity.status(200).body(Map.of("error", "EXPIRED"));
+    }
+    
+    return ResponseEntity.ok(authResponse(user));
+}
 
     private Map<String, Object> authResponse(AppUser user) {
     Map<String, Object> userMap = new LinkedHashMap<>();
