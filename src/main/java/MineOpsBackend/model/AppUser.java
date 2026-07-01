@@ -40,6 +40,8 @@ public class AppUser {
 
     private Boolean active = true;
 
+    private Boolean pending = false;
+
     public AppUser() {
     }
 
@@ -95,6 +97,9 @@ public class AppUser {
 
 public Boolean getActive() { return active; }
 public void setActive(Boolean v) { this.active = v; }
+
+public Boolean getPending() { return pending; }
+public void setPending(Boolean pending) { this.pending = pending; }
 
 
 

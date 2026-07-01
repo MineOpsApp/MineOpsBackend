@@ -66,9 +66,15 @@ public class AuthController {
         ));
 
         if ("guest".equals(request.role()) && request.guestSubRole() != null) {
-    user.setGuestSubRole(request.guestSubRole());
-    appUserRepository.save(user);
-}
+            user.setGuestSubRole(request.guestSubRole());
+            appUserRepository.save(user);
+        }
+
+        if ("worker".equals(request.role())) {
+            user.setPending(true);
+            appUserRepository.save(user);
+            return Map.of("pending", true);
+        }
 
         return authResponse(user);
     }
@@ -84,6 +90,10 @@ public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginReques
         return ResponseEntity.status(401).body(Map.of("error", "INVALID_CREDENTIALS"));
     }
     
+    if (Boolean.TRUE.equals(user.getPending())) {
+        return ResponseEntity.status(200).body(Map.of("error", "PENDING_APPROVAL"));
+    }
+
     if (Boolean.FALSE.equals(user.getActive())) {
         return ResponseEntity.status(200).body(Map.of("error", "SUSPENDED"));
     }
@@ -108,6 +118,14 @@ public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginReques
         "user", userMap
     );
 }
+@PostMapping("/api/auth/refresh")
+@PreAuthorize("isAuthenticated()")
+public Map<String, Object> refresh(@AuthenticationPrincipal AuthenticatedUser principal) {
+    AppUser user = appUserRepository.findByEmailIgnoreCase(principal.email())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    return Map.of("token", jwtService.createToken(user));
+}
+
 @PostMapping("/api/auth/push-token")
 @PreAuthorize("isAuthenticated()")
 public Map<String, Object> savePushToken(
