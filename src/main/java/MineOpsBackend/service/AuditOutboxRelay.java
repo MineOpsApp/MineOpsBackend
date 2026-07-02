@@ -57,7 +57,7 @@ public class AuditOutboxRelay {
                 body.put("details", entry.getDetails());
 
                 HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(auditServiceUrl + "/api/audit-logs"))
+                    .uri(URI.create(auditServiceUrl + "/api/internal/audit-logs"))
                     .timeout(Duration.ofSeconds(5))
                     .header("Content-Type", "application/json")
                     .header(INTERNAL_API_KEY_HEADER, internalApiKey)
