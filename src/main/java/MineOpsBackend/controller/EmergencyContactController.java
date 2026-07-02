@@ -59,6 +59,12 @@ public class EmergencyContactController {
         if (isBlank(request.relationship())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "relationship is required");
         if (isBlank(request.phone())) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "phone is required");
 
+        String normalizedPhone = normalizePhone(request.phone());
+        if (!isValidPhone(normalizedPhone)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Invalid phone number. Use Ghana format (e.g. 0244 123 456 or +233 24 123 456) or a valid international number.");
+        }
+
         String type = request.contactType().toUpperCase();
 
         EmergencyContact contact = contactRepository
@@ -70,11 +76,11 @@ public class EmergencyContactController {
             if (existing.size() >= 2) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Maximum 2 emergency contacts allowed");
             }
-            contact = new EmergencyContact(user.id(), type, request.name().trim(), request.relationship().trim(), request.phone().trim());
+            contact = new EmergencyContact(user.id(), type, request.name().trim(), request.relationship().trim(), normalizedPhone);
         } else {
             contact.setName(request.name().trim());
             contact.setRelationship(request.relationship().trim());
-            contact.setPhone(request.phone().trim());
+            contact.setPhone(normalizedPhone);
         }
 
         EmergencyContact saved = contactRepository.save(contact);
@@ -121,5 +127,20 @@ public class EmergencyContactController {
 
     private boolean isBlank(String s) {
         return s == null || s.isBlank();
+    }
+
+    // Strip spaces, dashes, brackets, dots — keep + for international prefix
+    private String normalizePhone(String phone) {
+        return phone.replaceAll("[\\s\\-().]", "");
+    }
+
+    // Ghana local: 0 + 9 digits (10 total)
+    // Ghana international: +233 + 9 digits
+    // Foreign international: + then 7–15 digits (not +233)
+    private boolean isValidPhone(String normalized) {
+        if (normalized.matches("^0\\d{9}$")) return true;
+        if (normalized.matches("^\\+233\\d{9}$")) return true;
+        if (normalized.matches("^\\+(?!233)\\d{7,14}$")) return true;
+        return false;
     }
 }
