@@ -132,6 +132,8 @@ public class HazardController {
     ) {
         HazardReport report = hazardReportRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hazard report not found"));
+        if (!report.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hazard belongs to a different site");
         report.setStatus("REVIEWED");
         report.setReviewedAt(LocalDateTime.now());
         report.setReviewedByRole(user.role());
@@ -166,6 +168,8 @@ public class HazardController {
 
         HazardReport report = hazardReportRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hazard report not found"));
+        if (!report.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hazard belongs to a different site");
         report.setStatus("CLEARED");
         report.setClosedAt(LocalDateTime.now());
         report.setClosedByRole(user.role());

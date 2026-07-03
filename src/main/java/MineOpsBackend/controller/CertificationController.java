@@ -89,7 +89,7 @@ public class CertificationController {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Certification not found"));
 
         // Workers can only see their own history
-        if ("ROLE_WORKER".equals(user.role()) &&
+        if ("worker".equals(user.role()) &&
                 !cert.getWorkerEmail().equalsIgnoreCase(user.email())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }

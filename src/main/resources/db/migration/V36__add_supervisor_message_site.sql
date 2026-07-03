@@ -1,0 +1,1 @@
+ALTER TABLE supervisor_messages ADD COLUMN IF NOT EXISTS site VARCHAR(255);

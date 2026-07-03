@@ -1,0 +1,2 @@
+ALTER TABLE notices ADD COLUMN IF NOT EXISTS site VARCHAR(255);
+CREATE INDEX IF NOT EXISTS idx_notices_site ON notices(site);

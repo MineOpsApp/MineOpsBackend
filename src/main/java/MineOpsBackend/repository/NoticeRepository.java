@@ -13,6 +13,11 @@ public interface NoticeRepository extends JpaRepository<Notice, Long> {
     List<Notice> findAllByOrderByCreatedAtDesc();
 
     Page<Notice> findAllByOrderByCreatedAtDesc(Pageable pageable);
-    @Query("SELECT n FROM Notice n WHERE n.expiresAt IS NULL OR n.expiresAt > :now ORDER BY n.createdAt DESC")
-Page<Notice> findActiveNotices(@org.springframework.data.repository.query.Param("now") java.time.LocalDateTime now, Pageable pageable);
+
+    Page<Notice> findBySiteIgnoreCaseOrderByCreatedAtDesc(String site, Pageable pageable);
+
+    long countBySiteIgnoreCase(String site);
+
+    @Query("SELECT n FROM Notice n WHERE (n.expiresAt IS NULL OR n.expiresAt > :now) AND (n.site IS NULL OR LOWER(n.site) = LOWER(:site)) ORDER BY n.createdAt DESC")
+    Page<Notice> findActiveNoticesBySite(@org.springframework.data.repository.query.Param("now") java.time.LocalDateTime now, @org.springframework.data.repository.query.Param("site") String site, Pageable pageable);
 }

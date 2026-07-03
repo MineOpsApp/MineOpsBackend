@@ -31,7 +31,11 @@ public class MessageController {
 
     @GetMapping("/api/messages")
     @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR')")
-    public List<SupervisorMessage> getMessages() {
+    public List<SupervisorMessage> getMessages(@AuthenticationPrincipal AuthenticatedUser user) {
+        String site = user.assignedSite();
+        if (site != null && !site.isBlank()) {
+            return supervisorMessageRepository.findBySiteIgnoreCaseOrderByCreatedAtDesc(site);
+        }
         return supervisorMessageRepository.findAllByOrderByCreatedAtDesc();
     }
 
@@ -46,6 +50,7 @@ public class MessageController {
             request.audience(),
             request.message()
         );
+        message.setSite(user.assignedSite());
 
         SupervisorMessage saved = supervisorMessageRepository.save(message);
         auditLogService.record(

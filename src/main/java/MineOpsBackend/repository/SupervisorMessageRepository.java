@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface SupervisorMessageRepository extends JpaRepository<SupervisorMessage, Long> {
     List<SupervisorMessage> findAllByOrderByCreatedAtDesc();
+    List<SupervisorMessage> findBySiteIgnoreCaseOrderByCreatedAtDesc(String site);
 }

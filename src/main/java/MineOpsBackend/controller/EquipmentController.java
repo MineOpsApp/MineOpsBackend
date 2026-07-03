@@ -73,6 +73,8 @@ public class EquipmentController {
     ) {
         Equipment equipment = equipmentRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Equipment not found"));
+        if (!equipment.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Equipment belongs to a different site");
 
         equipment.setStatus(request.status());
         if (request.notes() != null) equipment.setNotes(request.notes());

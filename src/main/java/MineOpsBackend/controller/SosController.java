@@ -46,9 +46,7 @@ public class SosController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @RequestBody(required = false) CreateSosRequest request
     ) {
-        String site = (request != null && request.site() != null && !request.site().isBlank())
-            ? request.site()
-            : user.assignedSite() != null ? user.assignedSite() : "Unassigned";
+        String site = user.assignedSite() != null ? user.assignedSite() : "Unassigned";
         String message = (request != null && request.message() != null && !request.message().isBlank())
             ? request.message()
             : "Emergency assistance requested";

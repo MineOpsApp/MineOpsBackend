@@ -59,7 +59,7 @@ public class SupervisorDashboardController {
         String site = supervisor.getAssignedSite() != null ? supervisor.getAssignedSite() : "";
 
         long hazardCount = hazardRepo.findBySiteOrderByCreatedAtDesc(site).size();
-        long noticeCount = noticeRepo.findAllByOrderByCreatedAtDesc().size();
+        long noticeCount = noticeRepo.countBySiteIgnoreCase(site);
         long workersOnSite = attendanceRepo.countBySiteIgnoreCaseAndStatus(site, "ON_SITE");
         long pendingShiftLogs = shiftLogRepo.countBySiteIgnoreCaseAndStatus(site, "PENDING");
         long unreadMessages = messageRepo.countBySiteIgnoreCaseAndReadAtIsNull(site);

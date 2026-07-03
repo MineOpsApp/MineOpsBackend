@@ -9,7 +9,7 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Arrays;
+import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -102,7 +102,7 @@ public class JwtService {
     }
 
     private boolean constantTimeEquals(String expected, String actual) {
-        return Arrays.equals(
+        return MessageDigest.isEqual(
             expected.getBytes(StandardCharsets.UTF_8),
             actual.getBytes(StandardCharsets.UTF_8)
         );

@@ -55,9 +55,10 @@ public class NoticeController {
    @GetMapping("/api/notices")
 @PreAuthorize("isAuthenticated()")
 public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
+    String site = user.assignedSite() != null ? user.assignedSite() : "";
     Page<Notice> noticesPage = "worker".equals(user.role()) || "guest".equals(user.role())
-        ? noticeRepository.findActiveNotices(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC), pageable)
-        : noticeRepository.findAllByOrderByCreatedAtDesc(pageable);
+        ? noticeRepository.findActiveNoticesBySite(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC), site, pageable)
+        : noticeRepository.findBySiteIgnoreCaseOrderByCreatedAtDesc(site, pageable);
 
     List<Long> noticeIds = noticesPage.getContent().stream().map(Notice::getId).toList();
 
@@ -82,6 +83,7 @@ public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal Authenticat
             request.message(),
             user.role()
         );
+        notice.setSite(user.assignedSite());
         notice.setCategory(request.category() != null ? request.category() : "Operational");
         if (request.expiresAt() != null && !request.expiresAt().isBlank()) {
     try {
@@ -173,6 +175,8 @@ public Map<String, Object> deleteNotice(
 ) {
     Notice notice = noticeRepository.findById(id)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Notice not found"));
+    if (notice.getSite() != null && !notice.getSite().equalsIgnoreCase(user.assignedSite()))
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Notice belongs to a different site");
     noticeRepository.delete(notice);
     auditLogService.record("NOTICE_DELETED", user.role(), user.fullName(), user.email(),
         "Notice", id, notice.getTitle());

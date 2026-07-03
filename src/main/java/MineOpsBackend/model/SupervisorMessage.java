@@ -18,6 +18,8 @@ public class SupervisorMessage {
 
     private String senderRole;
 
+    private String site;
+
     private String audience;
 
     private String message;
@@ -45,6 +47,9 @@ public class SupervisorMessage {
     public void setSenderRole(String senderRole) {
         this.senderRole = senderRole;
     }
+
+    public String getSite() { return site; }
+    public void setSite(String site) { this.site = site; }
 
     public String getAudience() {
         return audience;

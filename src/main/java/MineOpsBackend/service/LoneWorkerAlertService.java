@@ -36,7 +36,7 @@ public class LoneWorkerAlertService {
             if (session.isAlerted()) continue;
 
             List<AppUser> supervisors = userRepo
-                .findByRoleAndAssignedSiteIgnoreCase("ROLE_SUPERVISOR", session.getSite());
+                .findByRoleAndAssignedSiteIgnoreCase("supervisor", session.getSite());
 
             List<String> tokens = new java.util.ArrayList<>();
             for (AppUser sup : supervisors) {
@@ -52,10 +52,9 @@ public class LoneWorkerAlertService {
                         session.getLastCheckedInAt().toString().substring(11, 16),
                     "lone_worker"
                 );
+                session.setAlerted(true);
+                loneWorkerRepo.save(session);
             }
-
-            session.setAlerted(true);
-            loneWorkerRepo.save(session);
         }
     }
 }

@@ -39,7 +39,7 @@ public class DangerZoneController {
         @Valid @RequestBody CreateDangerZoneRequest request
     ) {
         DangerZone zone = new DangerZone(
-            request.site(),
+            user.assignedSite(),
             request.zoneName(),
             request.riskLevel()
         );

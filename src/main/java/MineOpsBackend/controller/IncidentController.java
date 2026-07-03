@@ -123,9 +123,11 @@ public class IncidentController {
         
     ) {
         IncidentReport report = incidentReportRepository.findById(id)
-    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Incident report not found"));
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Incident report not found"));
+        if (!report.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Incident belongs to a different site");
 
-report.setStatus(request.status());
+        report.setStatus(request.status());
 report.setUpdatedAt(LocalDateTime.now());
 if (request.notes() != null && !request.notes().isBlank()) {
     report.setInvestigationNotes(request.notes());

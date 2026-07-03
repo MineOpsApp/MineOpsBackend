@@ -135,15 +135,27 @@ public class EmergencyContactController {
 
     @GetMapping("/api/emergency-contacts/worker/{workerId}")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
-    public List<EmergencyContact> getWorkerContactsById(@PathVariable Long workerId) {
+    public List<EmergencyContact> getWorkerContactsById(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @PathVariable Long workerId
+    ) {
+        AppUser worker = appUserRepository.findById(workerId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Worker not found"));
+        if (worker.getAssignedSite() == null || !worker.getAssignedSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker belongs to a different site");
         return contactRepository.findByWorkerIdOrderByContactTypeAsc(workerId);
     }
 
     @GetMapping("/api/emergency-contacts/worker/email/{email}")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
-    public List<EmergencyContact> getWorkerContactsByEmail(@PathVariable String email) {
+    public List<EmergencyContact> getWorkerContactsByEmail(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @PathVariable String email
+    ) {
         AppUser worker = appUserRepository.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Worker not found"));
+        if (worker.getAssignedSite() == null || !worker.getAssignedSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker belongs to a different site");
         return contactRepository.findByWorkerIdOrderByContactTypeAsc(worker.getId());
     }
 

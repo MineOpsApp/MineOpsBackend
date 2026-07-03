@@ -113,6 +113,8 @@ public class BlastController {
     ) {
         BlastSchedule blast = blastScheduleRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Blast schedule not found"));
+        if (!blast.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Blast belongs to a different site");
 
         if (!"SCHEDULED".equals(blast.getStatus())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only scheduled blasts can be cancelled");
@@ -155,6 +157,8 @@ public class BlastController {
     ) {
         BlastSchedule blast = blastScheduleRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Blast schedule not found"));
+        if (!blast.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Blast belongs to a different site");
 
         blast.setStatus("EXECUTED");
         blast.setUpdatedAt(LocalDateTime.now());
@@ -165,11 +169,5 @@ public class BlastController {
 
         return saved;
     }
-
-@GetMapping("/api/blasts/history")
-@PreAuthorize("isAuthenticated()")
-public List<BlastSchedule> getBlastHistory(@AuthenticationPrincipal AuthenticatedUser user) {
-    return blastScheduleRepository.findBySiteOrderByBlastTimeDesc(user.assignedSite());
-}
 
 }
