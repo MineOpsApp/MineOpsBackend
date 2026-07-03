@@ -53,7 +53,7 @@ public class SosController {
             ? request.message()
             : "Emergency assistance requested";
 
-        SosAlert alert = new SosAlert(user.role(), site, message);
+        SosAlert alert = new SosAlert(user.role(), site, message, user.fullName(), user.email());
         SosAlert saved = sosAlertRepository.save(alert);
 
         auditLogService.record(

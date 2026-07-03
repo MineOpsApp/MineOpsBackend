@@ -18,7 +18,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -109,6 +111,26 @@ public class EmergencyContactController {
             "EMERGENCY_CONTACT_DELETED", user.role(), user.fullName(), user.email(),
             "EmergencyContact", id, contact.getContactType() + ": " + contact.getName()
         );
+    }
+
+    @GetMapping("/api/emergency-contacts/directory")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public List<Map<String, Object>> getWorkerDirectory(@AuthenticationPrincipal AuthenticatedUser user) {
+        String site = user.assignedSite() != null ? user.assignedSite() : "";
+        return appUserRepository.findByAssignedSiteIgnoreCaseAndPendingFalseOrderByFullNameAsc(site)
+            .stream()
+            .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+            .filter(u -> List.of("worker", "supervisor", "safetyOfficer").contains(u.getRole()))
+            .map(u -> {
+                Map<String, Object> entry = new LinkedHashMap<>();
+                entry.put("id", u.getId());
+                entry.put("fullName", u.getFullName());
+                entry.put("email", u.getEmail());
+                entry.put("role", u.getRole());
+                entry.put("contactCount", contactRepository.findByWorkerIdOrderByContactTypeAsc(u.getId()).size());
+                return entry;
+            })
+            .collect(java.util.stream.Collectors.toList());
     }
 
     @GetMapping("/api/emergency-contacts/worker/{workerId}")

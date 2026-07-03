@@ -24,15 +24,21 @@ public class SosAlert {
 
     private String status;
 
+    private String actorName;
+
+    private String actorEmail;
+
     private LocalDateTime createdAt;
 
     public SosAlert() {
     }
 
-    public SosAlert(String role, String site, String message) {
+    public SosAlert(String role, String site, String message, String actorName, String actorEmail) {
         this.role = role;
         this.site = site;
         this.message = message;
+        this.actorName = actorName;
+        this.actorEmail = actorEmail;
         this.status = "Open";
         this.createdAt = LocalDateTime.now();
     }
@@ -71,6 +77,22 @@ public class SosAlert {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getActorName() {
+        return actorName;
+    }
+
+    public void setActorName(String actorName) {
+        this.actorName = actorName;
+    }
+
+    public String getActorEmail() {
+        return actorEmail;
+    }
+
+    public void setActorEmail(String actorEmail) {
+        this.actorEmail = actorEmail;
     }
 
     public LocalDateTime getCreatedAt() {
