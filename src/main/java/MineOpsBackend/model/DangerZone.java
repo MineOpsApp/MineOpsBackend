@@ -26,6 +26,9 @@ public class DangerZone {
 
     private LocalDateTime createdAt;
 
+    @jakarta.persistence.Column(columnDefinition = "TEXT")
+    private String polygonPoints;
+
     public DangerZone() {
     }
 
@@ -79,5 +82,13 @@ public class DangerZone {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public String getPolygonPoints() {
+        return polygonPoints;
+    }
+
+    public void setPolygonPoints(String polygonPoints) {
+        this.polygonPoints = polygonPoints;
     }
 }
