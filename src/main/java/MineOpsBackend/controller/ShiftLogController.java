@@ -7,8 +7,6 @@ import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.MineralInventoryService;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -83,8 +81,37 @@ return saved;
 
     @GetMapping("/api/shift-logs")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
-    public Page<ShiftLog> getSiteShiftLogs(@AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
-        return shiftLogRepository.findBySiteOrderBySubmittedAtDesc(user.assignedSite(), pageable);
+    public List<ShiftLog> getSiteShiftLogs(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) String dateFrom,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) String dateTo,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) String mineralType,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) String workerName,
+        @org.springframework.web.bind.annotation.RequestParam(required = false) String status
+    ) {
+        List<ShiftLog> logs = shiftLogRepository.findBySiteOrderBySubmittedAtDesc(user.assignedSite());
+
+        if (dateFrom != null && !dateFrom.isBlank()) {
+            java.time.LocalDate from = java.time.LocalDate.parse(dateFrom);
+            logs = logs.stream().filter(l -> !l.getSubmittedAt().toLocalDate().isBefore(from)).collect(java.util.stream.Collectors.toList());
+        }
+        if (dateTo != null && !dateTo.isBlank()) {
+            java.time.LocalDate to = java.time.LocalDate.parse(dateTo);
+            logs = logs.stream().filter(l -> !l.getSubmittedAt().toLocalDate().isAfter(to)).collect(java.util.stream.Collectors.toList());
+        }
+        if (mineralType != null && !mineralType.isBlank()) {
+            String m = mineralType.toLowerCase();
+            logs = logs.stream().filter(l -> l.getMineralType() != null && l.getMineralType().toLowerCase().contains(m)).collect(java.util.stream.Collectors.toList());
+        }
+        if (workerName != null && !workerName.isBlank()) {
+            String w = workerName.toLowerCase();
+            logs = logs.stream().filter(l -> l.getWorkerName() != null && l.getWorkerName().toLowerCase().contains(w)).collect(java.util.stream.Collectors.toList());
+        }
+        if (status != null && !status.isBlank()) {
+            String s = status.toUpperCase();
+            logs = logs.stream().filter(l -> s.equals(l.getStatus())).collect(java.util.stream.Collectors.toList());
+        }
+        return logs;
     }
 
     @PatchMapping("/api/shift-logs/{id}/approve")
