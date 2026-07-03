@@ -13,4 +13,5 @@ public interface ShiftLogRepository extends JpaRepository<ShiftLog, Long> {
     List<ShiftLog> findBySiteOrderBySubmittedAtDesc(String site);
 
     long countByWorkerEmailIgnoreCase(String workerEmail);
+    long countBySiteIgnoreCaseAndStatus(String site, String status);
 }

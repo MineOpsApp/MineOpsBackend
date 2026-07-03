@@ -12,4 +12,5 @@ public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Lo
     List<AttendanceRecord> findByWorkerEmailIgnoreCaseOrderByClockInAtDesc(String workerEmail);
 
     List<AttendanceRecord> findAllBySiteNotNullAndStatus(String status);
+    long countBySiteIgnoreCaseAndStatus(String site, String status);
 }

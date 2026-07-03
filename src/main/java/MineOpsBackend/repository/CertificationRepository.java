@@ -10,4 +10,5 @@ public interface CertificationRepository extends JpaRepository<Certification, Lo
     List<Certification> findByWorkerEmailIgnoreCaseOrderByExpiryDateAsc(String workerEmail);
 
     long countByWorkerEmailIgnoreCase(String workerEmail);
+    long countBySiteIgnoreCaseAndStatus(String site, String status);
 }
