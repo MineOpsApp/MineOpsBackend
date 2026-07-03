@@ -51,6 +51,10 @@ public class AppUser {
     private String momoNumber;
     private String momoNetwork;
 
+    private Long redeemedCodeId;
+    private LocalDateTime inductionCompletedAt;
+    private String phone;
+
     public AppUser() {
     }
 
@@ -121,4 +125,13 @@ public void setMomoNumber(String v) { this.momoNumber = v; }
 
 public String getMomoNetwork() { return momoNetwork; }
 public void setMomoNetwork(String v) { this.momoNetwork = v; }
+
+public Long getRedeemedCodeId() { return redeemedCodeId; }
+public void setRedeemedCodeId(Long v) { this.redeemedCodeId = v; }
+
+public LocalDateTime getInductionCompletedAt() { return inductionCompletedAt; }
+public void setInductionCompletedAt(LocalDateTime v) { this.inductionCompletedAt = v; }
+
+public String getPhone() { return phone; }
+public void setPhone(String v) { this.phone = v; }
 }
