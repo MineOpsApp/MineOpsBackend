@@ -48,6 +48,9 @@ public class AppUser {
     @Column(length = 500)
     private String bio;
 
+    private String momoNumber;
+    private String momoNetwork;
+
     public AppUser() {
     }
 
@@ -113,7 +116,9 @@ public void setProfilePhoto(String profilePhoto) { this.profilePhoto = profilePh
 public String getBio() { return bio; }
 public void setBio(String bio) { this.bio = bio; }
 
+public String getMomoNumber() { return momoNumber; }
+public void setMomoNumber(String v) { this.momoNumber = v; }
 
-
-
+public String getMomoNetwork() { return momoNetwork; }
+public void setMomoNetwork(String v) { this.momoNetwork = v; }
 }

@@ -66,6 +66,20 @@ public class ProfileController {
             }
             appUser.setBio(bio);
         }
+        if (body.containsKey("momoNumber")) {
+            String num = body.get("momoNumber");
+            if (num != null && !num.isBlank() && !num.matches("\\d{10,15}"))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MoMo number must be 10–15 digits.");
+            appUser.setMomoNumber(num == null || num.isBlank() ? null : num);
+        }
+        if (body.containsKey("momoNetwork")) {
+            String net = body.get("momoNetwork");
+            if (net != null && !net.isBlank()
+                    && !java.util.Set.of("MTN", "TELECEL", "AIRTELTIGO").contains(net.toUpperCase()))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "momoNetwork must be MTN, TELECEL, or AIRTELTIGO.");
+            appUser.setMomoNetwork(net == null || net.isBlank() ? null : net.toUpperCase());
+        }
         userRepo.save(appUser);
         return buildProfile(appUser);
     }
@@ -102,6 +116,8 @@ public class ProfileController {
         m.put("shiftLogCount", shiftCount);
         m.put("certificationCount", certCount);
         m.put("emergencyContactCount", contactCount);
+        m.put("momoNumber", u.getMomoNumber());
+        m.put("momoNetwork", u.getMomoNetwork());
         return m;
     }
 }

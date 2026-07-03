@@ -34,6 +34,7 @@ public class ShiftLog {
     private LocalDateTime approvedAt;
     private String rejectedBy;
     private LocalDateTime rejectedAt;
+    private Long payCycleId;
 
     public ShiftLog() {}
 
@@ -102,4 +103,6 @@ public class ShiftLog {
     public void setRejectedBy(String v) { this.rejectedBy = v; }
     public LocalDateTime getRejectedAt() { return rejectedAt; }
     public void setRejectedAt(LocalDateTime v) { this.rejectedAt = v; }
+    public Long getPayCycleId() { return payCycleId; }
+    public void setPayCycleId(Long v) { this.payCycleId = v; }
 }
