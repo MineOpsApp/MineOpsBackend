@@ -53,20 +53,21 @@ public class PayCalculationService {
     }
 
     @Transactional
-    public PayCycle preview(String site, String payDate, String mineralType, String unit,
-                            BigDecimal pricePerUnit, String createdBy) {
-        // Delete any existing DRAFT for this site/date/mineral so there's never a double-preview
-        payCycleRepo.findBySiteIgnoreCaseAndPayDateAndMineralTypeIgnoreCaseAndStatus(
-                site, payDate, mineralType, "DRAFT")
+    public PayCycle preview(String site, String periodStart, String periodEnd, String mineralType,
+                            String unit, BigDecimal pricePerUnit, String createdBy) {
+        // Delete any existing DRAFT for this site/period/mineral so there's never a double-preview
+        payCycleRepo.findBySiteIgnoreCaseAndPeriodStartAndPeriodEndAndMineralTypeIgnoreCaseAndStatus(
+                site, periodStart, periodEnd, mineralType, "DRAFT")
             .ifPresent(existing -> {
                 payRecordRepo.deleteAll(payRecordRepo.findByPayCycleId(existing.getId()));
                 payCycleRepo.delete(existing);
             });
 
-        List<ShiftLog> logs = shiftLogRepo.findUnpaidApprovedLogs(site, payDate, mineralType);
+        List<ShiftLog> logs = shiftLogRepo.findUnpaidApprovedLogs(site, periodStart, periodEnd, mineralType);
         if (logs.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                "No approved, unpaid shift logs found for " + mineralType + " on " + payDate);
+                "No approved, unpaid shift logs found for " + mineralType
+                    + " between " + periodStart + " and " + periodEnd);
         }
 
         BigDecimal totalVolume = logs.stream()
@@ -78,11 +79,11 @@ public class PayCalculationService {
             .map(c -> c.getFormulaType())
             .orElse("EQUAL_PER_HEAD");
 
-        PayCycle cycle = new PayCycle(site, payDate, mineralType, unit,
+        PayCycle cycle = new PayCycle(site, periodStart, periodEnd, mineralType, unit,
             totalVolume, pricePerUnit, grossTotal, formulaType, createdBy);
         PayCycle saved = payCycleRepo.save(cycle);
 
-        List<WorkerPayRecord> records = buildRecords(saved, logs, formulaType, grossTotal, payDate, site);
+        List<WorkerPayRecord> records = buildRecords(saved, logs, formulaType, grossTotal, periodStart, periodEnd, site);
         payRecordRepo.saveAll(records);
 
         return saved;
@@ -90,8 +91,7 @@ public class PayCalculationService {
 
     private List<WorkerPayRecord> buildRecords(PayCycle cycle, List<ShiftLog> logs,
                                                 String formulaType, BigDecimal grossTotal,
-                                                String payDate, String site) {
-        // Collect distinct workers
+                                                String periodStart, String periodEnd, String site) {
         Map<String, String> workerNames = new HashMap<>();
         for (ShiftLog log : logs) {
             workerNames.put(log.getWorkerEmail().toLowerCase(), log.getWorkerName());
@@ -100,11 +100,10 @@ public class PayCalculationService {
         Map<String, BigDecimal> shares = new HashMap<>();
 
         if ("WEIGHTED_BY_HOURS".equals(formulaType)) {
-            Map<String, BigDecimal> workerHours = computeHours(workerNames, payDate, site);
+            Map<String, BigDecimal> workerHours = computeHours(workerNames, periodStart, periodEnd, site);
             BigDecimal totalHours = workerHours.values().stream().reduce(BigDecimal.ZERO, (a, b) -> a.add(b));
 
             if (totalHours.compareTo(BigDecimal.ZERO) == 0) {
-                // Fall back to equal split if no attendance data
                 equalSplit(workerNames, grossTotal, shares);
             } else {
                 for (String email : workerNames.keySet()) {
@@ -118,8 +117,7 @@ public class PayCalculationService {
             equalSplit(workerNames, grossTotal, shares);
         }
 
-        // Recompute hours map for record storage regardless of formula
-        Map<String, BigDecimal> hoursForRecord = computeHours(workerNames, payDate, site);
+        Map<String, BigDecimal> hoursForRecord = computeHours(workerNames, periodStart, periodEnd, site);
 
         List<WorkerPayRecord> records = new ArrayList<>();
         for (Map.Entry<String, String> entry : workerNames.entrySet()) {
@@ -130,7 +128,6 @@ public class PayCalculationService {
             BigDecimal insurance = BigDecimal.ZERO;
             BigDecimal net = share.subtract(insurance);
 
-            // Pull momo details from AppUser if available
             String momoNumber = null;
             String momoNetwork = null;
             AppUser user = userRepo.findByEmailIgnoreCase(email).orElse(null);
@@ -154,25 +151,27 @@ public class PayCalculationService {
         }
     }
 
-    private Map<String, BigDecimal> computeHours(Map<String, String> workers, String payDate, String site) {
-        LocalDate date = LocalDate.parse(payDate);
-        LocalDateTime start = date.atStartOfDay();
-        LocalDateTime end = date.atTime(LocalTime.MAX);
+    private Map<String, BigDecimal> computeHours(Map<String, String> workers,
+                                                  String periodStart, String periodEnd, String site) {
+        LocalDateTime startDt = LocalDate.parse(periodStart).atStartOfDay();
+        LocalDateTime endDt = LocalDate.parse(periodEnd).atTime(LocalTime.MAX);
 
         List<AttendanceRecord> records =
-            attendanceRepo.findBySiteIgnoreCaseAndClockInAtBetween(site, start, end);
+            attendanceRepo.findBySiteIgnoreCaseAndClockInAtBetween(site, startDt, endDt);
 
         Map<String, BigDecimal> hoursMap = new HashMap<>();
-        for (String email : workers.keySet()) {
-            hoursMap.put(email, BigDecimal.valueOf(8)); // default if no record
-        }
         for (AttendanceRecord ar : records) {
             if (ar.getClockOutAt() == null) continue;
             String email = ar.getWorkerEmail().toLowerCase();
             if (!workers.containsKey(email)) continue;
             double hours = java.time.Duration.between(ar.getClockInAt(), ar.getClockOutAt())
                 .toMinutes() / 60.0;
-            hoursMap.put(email, BigDecimal.valueOf(hours).setScale(2, RoundingMode.HALF_UP));
+            hoursMap.merge(email, BigDecimal.valueOf(hours).setScale(2, RoundingMode.HALF_UP),
+                (a, b) -> a.add(b));
+        }
+        // Workers with no attendance records get the default 8h assumption
+        for (String email : workers.keySet()) {
+            hoursMap.putIfAbsent(email, BigDecimal.valueOf(8));
         }
         return hoursMap;
     }

@@ -17,6 +17,6 @@ public interface ShiftLogRepository extends JpaRepository<ShiftLog, Long> {
     long countByWorkerEmailIgnoreCase(String workerEmail);
     long countBySiteIgnoreCaseAndStatus(String site, String status);
 
-    @Query("SELECT s FROM ShiftLog s WHERE LOWER(s.site) = LOWER(:site) AND s.shiftDate = :shiftDate AND LOWER(s.mineralType) = LOWER(:mineralType) AND s.status = 'APPROVED' AND s.payCycleId IS NULL")
-    List<ShiftLog> findUnpaidApprovedLogs(@Param("site") String site, @Param("shiftDate") String shiftDate, @Param("mineralType") String mineralType);
+    @Query("SELECT s FROM ShiftLog s WHERE LOWER(s.site) = LOWER(:site) AND s.shiftDate BETWEEN :periodStart AND :periodEnd AND LOWER(s.mineralType) = LOWER(:mineralType) AND s.status = 'APPROVED' AND s.payCycleId IS NULL")
+    List<ShiftLog> findUnpaidApprovedLogs(@Param("site") String site, @Param("periodStart") String periodStart, @Param("periodEnd") String periodEnd, @Param("mineralType") String mineralType);
 }

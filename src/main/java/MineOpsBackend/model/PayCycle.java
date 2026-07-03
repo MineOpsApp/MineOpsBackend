@@ -18,7 +18,8 @@ public class PayCycle {
     private Long id;
 
     private String site;
-    private String payDate; // stored as "YYYY-MM-DD" string, matches shift_logs.shift_date
+    private String periodStart; // "YYYY-MM-DD", inclusive
+    private String periodEnd;   // "YYYY-MM-DD", inclusive
     private String mineralType;
     private String unit;
     private BigDecimal totalVolume;
@@ -35,11 +36,12 @@ public class PayCycle {
 
     public PayCycle() {}
 
-    public PayCycle(String site, String payDate, String mineralType, String unit,
+    public PayCycle(String site, String periodStart, String periodEnd, String mineralType, String unit,
                     BigDecimal totalVolume, BigDecimal pricePerUnit, BigDecimal grossTotal,
                     String formulaType, String createdBy) {
         this.site = site;
-        this.payDate = payDate;
+        this.periodStart = periodStart;
+        this.periodEnd = periodEnd;
         this.mineralType = mineralType;
         this.unit = unit;
         this.totalVolume = totalVolume;
@@ -54,8 +56,10 @@ public class PayCycle {
     public Long getId() { return id; }
     public String getSite() { return site; }
     public void setSite(String v) { this.site = v; }
-    public String getPayDate() { return payDate; }
-    public void setPayDate(String v) { this.payDate = v; }
+    public String getPeriodStart() { return periodStart; }
+    public void setPeriodStart(String v) { this.periodStart = v; }
+    public String getPeriodEnd() { return periodEnd; }
+    public void setPeriodEnd(String v) { this.periodEnd = v; }
     public String getMineralType() { return mineralType; }
     public void setMineralType(String v) { this.mineralType = v; }
     public String getUnit() { return unit; }

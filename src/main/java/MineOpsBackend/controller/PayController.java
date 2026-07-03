@@ -60,11 +60,12 @@ public class PayController {
         @Valid @RequestBody PreviewPayCycleRequest req
     ) {
         PayCycle cycle = calcService.preview(
-            user.assignedSite(), req.payDate(), req.mineralType(),
+            user.assignedSite(), req.periodStart(), req.periodEnd(), req.mineralType(),
             req.unit(), req.pricePerUnit(), user.email()
         );
         auditLogService.record("PAY_CYCLE_PREVIEWED", user.role(), user.fullName(), user.email(),
-            "PayCycle", cycle.getId(), req.mineralType() + " " + req.payDate());
+            "PayCycle", cycle.getId(),
+            req.mineralType() + " " + req.periodStart() + "/" + req.periodEnd());
         return buildCycleDetail(cycle);
     }
 
@@ -90,7 +91,9 @@ public class PayController {
         payCycleRepo.save(cycle);
 
         auditLogService.record("PAY_CYCLE_MANAGER_APPROVED", user.role(), user.fullName(), user.email(),
-            "PayCycle", id, cycle.getMineralType() + " " + cycle.getPayDate() + " GHS " + cycle.getGrossTotal());
+            "PayCycle", id,
+            cycle.getMineralType() + " " + cycle.getPeriodStart() + "/" + cycle.getPeriodEnd()
+                + " GHS " + cycle.getGrossTotal());
         return buildCycleDetail(cycle);
     }
 
@@ -129,7 +132,7 @@ public class PayController {
 
         // Mark shift logs as belonging to this pay cycle
         List<ShiftLog> logs = shiftLogRepo.findUnpaidApprovedLogs(
-            cycle.getSite(), cycle.getPayDate(), cycle.getMineralType());
+            cycle.getSite(), cycle.getPeriodStart(), cycle.getPeriodEnd(), cycle.getMineralType());
         for (ShiftLog log : logs) {
             log.setPayCycleId(id);
         }
@@ -140,8 +143,8 @@ public class PayController {
 
         auditLogService.record("PAY_CYCLE_DISBURSED", user.role(), user.fullName(), user.email(),
             "PayCycle", id,
-            cycle.getMineralType() + " " + cycle.getPayDate() + " GHS " + cycle.getGrossTotal()
-                + " status=" + cycle.getStatus());
+            cycle.getMineralType() + " " + cycle.getPeriodStart() + "/" + cycle.getPeriodEnd()
+                + " GHS " + cycle.getGrossTotal() + " status=" + cycle.getStatus());
         return buildCycleDetail(cycle);
     }
 
@@ -154,7 +157,7 @@ public class PayController {
     @GetMapping("/api/pay/site")
     @PreAuthorize("hasAuthority('ROLE_SUPERVISOR')")
     public List<PayCycle> getSiteCycles(@AuthenticationPrincipal AuthenticatedUser user) {
-        return payCycleRepo.findBySiteIgnoreCaseOrderByPayDateDesc(user.assignedSite());
+        return payCycleRepo.findBySiteIgnoreCaseOrderByPeriodStartDesc(user.assignedSite());
     }
 
     @GetMapping("/api/pay/{id}")

@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Optional;
 
 public interface PayCycleRepository extends JpaRepository<PayCycle, Long> {
-    List<PayCycle> findBySiteIgnoreCaseOrderByPayDateDesc(String site);
+    List<PayCycle> findBySiteIgnoreCaseOrderByPeriodStartDesc(String site);
 
-    Optional<PayCycle> findBySiteIgnoreCaseAndPayDateAndMineralTypeIgnoreCaseAndStatus(
-        String site, String payDate, String mineralType, String status);
+    Optional<PayCycle> findBySiteIgnoreCaseAndPeriodStartAndPeriodEndAndMineralTypeIgnoreCaseAndStatus(
+        String site, String periodStart, String periodEnd, String mineralType, String status);
 }
