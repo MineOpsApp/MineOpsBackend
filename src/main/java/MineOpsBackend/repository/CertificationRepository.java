@@ -8,4 +8,6 @@ import java.util.List;
 public interface CertificationRepository extends JpaRepository<Certification, Long> {
     List<Certification> findBySiteIgnoreCaseOrderByExpiryDateAsc(String site);
     List<Certification> findByWorkerEmailIgnoreCaseOrderByExpiryDateAsc(String workerEmail);
+
+    long countByWorkerEmailIgnoreCase(String workerEmail);
 }

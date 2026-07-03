@@ -42,6 +42,12 @@ public class AppUser {
 
     private Boolean pending = false;
 
+    @Column(columnDefinition = "TEXT")
+    private String profilePhoto;
+
+    @Column(length = 500)
+    private String bio;
+
     public AppUser() {
     }
 
@@ -100,6 +106,12 @@ public void setActive(Boolean v) { this.active = v; }
 
 public Boolean getPending() { return pending; }
 public void setPending(Boolean pending) { this.pending = pending; }
+
+public String getProfilePhoto() { return profilePhoto; }
+public void setProfilePhoto(String profilePhoto) { this.profilePhoto = profilePhoto; }
+
+public String getBio() { return bio; }
+public void setBio(String bio) { this.bio = bio; }
 
 
 
