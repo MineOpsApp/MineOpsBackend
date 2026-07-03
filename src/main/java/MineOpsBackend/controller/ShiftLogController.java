@@ -18,11 +18,25 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class ShiftLogController {
+
+    private static final Map<String, BigDecimal> UNIT_LIMITS = Map.of(
+        "kg",     new BigDecimal("50000"),
+        "tonnes", new BigDecimal("500"),
+        "t",      new BigDecimal("500"),
+        "oz",     new BigDecimal("10000"),
+        "g",      new BigDecimal("50000"),
+        "lb",     new BigDecimal("100000"),
+        "carats", new BigDecimal("500000"),
+        "ct",     new BigDecimal("500000")
+    );
+    private static final BigDecimal DEFAULT_LIMIT = new BigDecimal("100000");
 
     private final ShiftLogRepository shiftLogRepository;
     private final AuditLogService auditLogService;
@@ -44,6 +58,14 @@ public class ShiftLogController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @Valid @RequestBody SubmitShiftLogRequest request
     ) {
+        BigDecimal limit = UNIT_LIMITS.getOrDefault(request.unit().toLowerCase(), DEFAULT_LIMIT);
+        if (request.volumeExtracted().compareTo(limit) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Volume " + request.volumeExtracted() + " " + request.unit()
+                + " exceeds the maximum allowed per shift ("
+                + limit.stripTrailingZeros().toPlainString() + " " + request.unit() + ")");
+        }
+
         ShiftLog log = new ShiftLog(
     user.email(),
     user.fullName(),
