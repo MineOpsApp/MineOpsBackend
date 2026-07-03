@@ -6,12 +6,14 @@ import MineOpsBackend.repository.SupervisorMessageRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -33,10 +35,9 @@ public class MessageController {
     @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR')")
     public List<SupervisorMessage> getMessages(@AuthenticationPrincipal AuthenticatedUser user) {
         String site = user.assignedSite();
-        if (site != null && !site.isBlank()) {
-            return supervisorMessageRepository.findBySiteIgnoreCaseOrderByCreatedAtDesc(site);
-        }
-        return supervisorMessageRepository.findAllByOrderByCreatedAtDesc();
+        if (site == null || site.isBlank())
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "No site assigned to this account");
+        return supervisorMessageRepository.findBySiteIgnoreCaseOrderByCreatedAtDesc(site);
     }
 
     @PostMapping("/api/messages")
