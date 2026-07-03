@@ -14,4 +14,5 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     List<AppUser> findByRoleAndPendingAndAssignedSiteIgnoreCase(String role, boolean pending, String site);
     List<AppUser> findByAssignedSiteIgnoreCaseAndPendingFalseOrderByFullNameAsc(String site);
     List<AppUser> findByRoleAndSessionExpiresAtBefore(String role, java.time.LocalDateTime cutoff);
+    List<AppUser> findByRoleAndAssignedSiteIgnoreCase(String role, String site);
 }
