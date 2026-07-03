@@ -40,7 +40,7 @@ public class JwtService {
             payload.put("role", user.getRole());
             payload.put("site", user.getAssignedSite());
             payload.put("guestSubRole", user.getGuestSubRole());
-            payload.put("exp", Instant.now().plusSeconds(60 * 60 * 8).getEpochSecond());
+            payload.put("exp", Instant.now().plusSeconds(60 * 60).getEpochSecond()); // 1 hour
 
             String headerPart = encode(objectMapper.writeValueAsBytes(header));
             String payloadPart = encode(objectMapper.writeValueAsBytes(payload));

@@ -3,52 +3,53 @@ package MineOpsBackend.controller;
 import MineOpsBackend.dto.LoginRequest;
 import MineOpsBackend.dto.RegisterRequest;
 import MineOpsBackend.model.AppUser;
+import MineOpsBackend.model.RefreshToken;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.JwtService;
+import MineOpsBackend.service.RefreshTokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.HttpHeaders;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.LinkedHashMap;
 
 @RestController
 public class AuthController {
 
-    private static final Set<String> ALLOWED_ROLES = Set.of(
-        "worker",
-        "guest"
-    );
+    private static final Set<String> ALLOWED_ROLES = Set.of("worker", "guest");
 
     private final AppUserRepository appUserRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
-    public AuthController(AppUserRepository appUserRepository, JwtService jwtService) {
+    public AuthController(
+        AppUserRepository appUserRepository,
+        JwtService jwtService,
+        RefreshTokenService refreshTokenService
+    ) {
         this.appUserRepository = appUserRepository;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
     }
 
-    
-
     @PostMapping("/api/auth/register")
-    public Map<String, Object> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
         String email = request.email().trim().toLowerCase();
 
         if (!ALLOWED_ROLES.contains(request.role())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role");
         }
-
         if (appUserRepository.existsByEmailIgnoreCase(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
         }
@@ -58,11 +59,9 @@ public class AuthController {
             : request.assignedSite();
 
         AppUser user = appUserRepository.save(new AppUser(
-            request.fullName().trim(),
-            email,
+            request.fullName().trim(), email,
             passwordEncoder.encode(request.password()),
-            request.role(),
-            assignedSite
+            request.role(), assignedSite
         ));
 
         if ("guest".equals(request.role()) && request.guestSubRole() != null) {
@@ -73,69 +72,105 @@ public class AuthController {
         if ("worker".equals(request.role())) {
             user.setPending(true);
             appUserRepository.save(user);
-            return Map.of("pending", true);
+            return ResponseEntity.ok(Map.of("pending", true));
         }
 
-        return authResponse(user);
+        return ResponseEntity.ok(authResponse(user));
     }
 
     @PostMapping("/api/auth/login")
-public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
-   
-    String email = request.email().trim().toLowerCase();
-    
-    AppUser user = appUserRepository.findByEmailIgnoreCase(email).orElse(null);
-    
-    if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-        return ResponseEntity.status(401).body(Map.of("error", "INVALID_CREDENTIALS"));
-    }
-    
-    if (Boolean.TRUE.equals(user.getPending())) {
-        return ResponseEntity.status(200).body(Map.of("error", "PENDING_APPROVAL"));
+    public ResponseEntity<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
+        String email = request.email().trim().toLowerCase();
+        AppUser user = appUserRepository.findByEmailIgnoreCase(email).orElse(null);
+
+        if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            return ResponseEntity.status(401).body(Map.of("error", "INVALID_CREDENTIALS"));
+        }
+        if (Boolean.TRUE.equals(user.getPending())) {
+            return ResponseEntity.status(200).body(Map.of("error", "PENDING_APPROVAL"));
+        }
+        if (Boolean.FALSE.equals(user.getActive())) {
+            return ResponseEntity.status(200).body(Map.of("error", "SUSPENDED"));
+        }
+        if (user.isExpired()) {
+            return ResponseEntity.status(200).body(Map.of("error", "EXPIRED"));
+        }
+
+        return ResponseEntity.ok(authResponse(user));
     }
 
-    if (Boolean.FALSE.equals(user.getActive())) {
-        return ResponseEntity.status(200).body(Map.of("error", "SUSPENDED"));
+    @PostMapping("/api/auth/refresh")
+    public ResponseEntity<Map<String, Object>> refresh(@RequestBody Map<String, String> body) {
+        String raw = body == null ? null : body.get("refreshToken");
+        if (raw == null || raw.isBlank()) {
+            return ResponseEntity.status(400).body(Map.of("error", "MISSING_REFRESH_TOKEN"));
+        }
+        try {
+            RefreshToken existing = refreshTokenService.validate(raw);
+            AppUser user = appUserRepository.findById(existing.getUserId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+            if (Boolean.FALSE.equals(user.getActive())) {
+                return ResponseEntity.status(200).body(Map.of("error", "SUSPENDED"));
+            }
+            if (user.isExpired()) {
+                return ResponseEntity.status(200).body(Map.of("error", "EXPIRED"));
+            }
+
+            String newRaw = refreshTokenService.rotate(existing);
+            return ResponseEntity.ok(authResponseWithToken(user, newRaw));
+        } catch (ResponseStatusException e) {
+            return ResponseEntity.status(401).body(Map.of("error", "INVALID_REFRESH_TOKEN", "message", e.getReason() != null ? e.getReason() : "Token invalid or expired"));
+        }
     }
-    
-    if (user.isExpired()) {
-        return ResponseEntity.status(200).body(Map.of("error", "EXPIRED"));
+
+    @PostMapping("/api/auth/logout")
+    public Map<String, Object> logout(@RequestBody(required = false) Map<String, String> body) {
+        if (body != null) {
+            String raw = body.get("refreshToken");
+            if (raw != null && !raw.isBlank()) {
+                try {
+                    RefreshToken token = refreshTokenService.validate(raw);
+                    refreshTokenService.revokeAll(token.getUserId());
+                } catch (Exception ignored) {
+                    // Already revoked or expired — logout is still successful
+                }
+            }
+        }
+        return Map.of("success", true);
     }
-    
-    return ResponseEntity.ok(authResponse(user));
-}
+
+    @PostMapping("/api/auth/push-token")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, Object> savePushToken(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @RequestBody Map<String, String> body
+    ) {
+        AppUser appUser = appUserRepository.findByEmailIgnoreCase(user.email())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        appUser.setPushToken(body.get("token"));
+        appUserRepository.save(appUser);
+        return Map.of("success", true);
+    }
 
     private Map<String, Object> authResponse(AppUser user) {
-    Map<String, Object> userMap = new LinkedHashMap<>();
-    userMap.put("id", user.getId());
-    userMap.put("fullName", user.getFullName());
-    userMap.put("email", user.getEmail());
-    userMap.put("role", user.getRole());
-    userMap.put("assignedSite", user.getAssignedSite());
-    userMap.put("guestSubRole", user.getGuestSubRole());
-    return Map.of(
-        "token", jwtService.createToken(user),
-        "user", userMap
-    );
-}
-@PostMapping("/api/auth/refresh")
-@PreAuthorize("isAuthenticated()")
-public Map<String, Object> refresh(@AuthenticationPrincipal AuthenticatedUser principal) {
-    AppUser user = appUserRepository.findByEmailIgnoreCase(principal.email())
-        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-    return Map.of("token", jwtService.createToken(user));
-}
+        String rawRefreshToken = refreshTokenService.generate(user.getId());
+        return authResponseWithToken(user, rawRefreshToken);
+    }
 
-@PostMapping("/api/auth/push-token")
-@PreAuthorize("isAuthenticated()")
-public Map<String, Object> savePushToken(
-    @AuthenticationPrincipal AuthenticatedUser user,
-    @RequestBody Map<String, String> body
-) {
-    AppUser appUser = appUserRepository.findByEmailIgnoreCase(user.email())
-        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-    appUser.setPushToken(body.get("token"));
-    appUserRepository.save(appUser);
-    return Map.of("success", true);
-}
+    private Map<String, Object> authResponseWithToken(AppUser user, String rawRefreshToken) {
+        Map<String, Object> userMap = new LinkedHashMap<>();
+        userMap.put("id", user.getId());
+        userMap.put("fullName", user.getFullName());
+        userMap.put("email", user.getEmail());
+        userMap.put("role", user.getRole());
+        userMap.put("assignedSite", user.getAssignedSite());
+        userMap.put("guestSubRole", user.getGuestSubRole());
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("token", jwtService.createToken(user));
+        result.put("refreshToken", rawRefreshToken);
+        result.put("user", userMap);
+        return result;
+    }
 }
