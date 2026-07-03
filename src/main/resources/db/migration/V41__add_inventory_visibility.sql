@@ -1,0 +1,1 @@
+ALTER TABLE sites ADD COLUMN inventory_visible_to_guests BOOLEAN NOT NULL DEFAULT FALSE;

@@ -18,6 +18,8 @@ public class Site {
 
     private String status;
 
+    private boolean inventoryVisibleToGuests = false;
+
     public Site() {
     }
 
@@ -44,5 +46,13 @@ public class Site {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public boolean isInventoryVisibleToGuests() {
+        return inventoryVisibleToGuests;
+    }
+
+    public void setInventoryVisibleToGuests(boolean inventoryVisibleToGuests) {
+        this.inventoryVisibleToGuests = inventoryVisibleToGuests;
     }
 }
