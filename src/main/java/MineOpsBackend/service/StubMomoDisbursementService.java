@@ -18,10 +18,14 @@ public class StubMomoDisbursementService implements MomoDisbursementService {
 
     @Override
     public void disburse(WorkerPayRecord record) {
+        if (record.getMomoNumber() == null || record.getMomoNumber().isBlank()) {
+            throw new IllegalStateException(
+                "Cannot disburse: no MoMo number on file for " + record.getWorkerEmail());
+        }
+
         System.out.printf("[STUB MoMo] Disbursing GHS %.2f to %s (%s) on %s%n",
             record.getNetPay(), record.getWorkerName(),
-            record.getMomoNumber() != null ? record.getMomoNumber() : "no number on file",
-            record.getMomoNetwork() != null ? record.getMomoNetwork() : "unknown network");
+            record.getMomoNumber(), record.getMomoNetwork());
 
         record.setDisbursementStatus("SENT");
         record.setMomoTransactionRef("SIMULATED-" + UUID.randomUUID().toString().toUpperCase().replace("-", "").substring(0, 12));
