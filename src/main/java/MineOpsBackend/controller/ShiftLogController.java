@@ -5,16 +5,22 @@ import MineOpsBackend.model.ShiftLog;
 import MineOpsBackend.repository.ShiftLogRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.MineralInventoryService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -22,10 +28,16 @@ public class ShiftLogController {
 
     private final ShiftLogRepository shiftLogRepository;
     private final AuditLogService auditLogService;
+    private final MineralInventoryService inventoryService;
 
-    public ShiftLogController(ShiftLogRepository shiftLogRepository, AuditLogService auditLogService) {
+    public ShiftLogController(
+        ShiftLogRepository shiftLogRepository,
+        AuditLogService auditLogService,
+        MineralInventoryService inventoryService
+    ) {
         this.shiftLogRepository = shiftLogRepository;
         this.auditLogService = auditLogService;
+        this.inventoryService = inventoryService;
     }
 
     @PostMapping("/api/shift-logs")
@@ -73,5 +85,70 @@ return saved;
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public Page<ShiftLog> getSiteShiftLogs(@AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
         return shiftLogRepository.findBySiteOrderBySubmittedAtDesc(user.assignedSite(), pageable);
+    }
+
+    @PatchMapping("/api/shift-logs/{id}/approve")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public ShiftLog approveShiftLog(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        ShiftLog log = shiftLogRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Shift log not found"));
+
+        if (!log.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Log belongs to a different site");
+
+        if ("APPROVED".equals(log.getStatus()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Already approved");
+
+        if ("REJECTED".equals(log.getStatus()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot approve a rejected log");
+
+        log.setStatus("APPROVED");
+        log.setApprovedBy(user.fullName());
+        log.setApprovedAt(LocalDateTime.now());
+        ShiftLog saved = shiftLogRepository.save(log);
+
+        inventoryService.applyApprovedShiftLog(saved, user.fullName());
+
+        auditLogService.record(
+            "SHIFT_LOG_APPROVED",
+            user.role(), user.fullName(), user.email(),
+            "ShiftLog", id,
+            log.getMineralType() + " " + log.getVolumeExtracted() + " " + log.getUnit()
+                + " — " + log.getWorkerName()
+        );
+        return saved;
+    }
+
+    @PatchMapping("/api/shift-logs/{id}/reject")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public ShiftLog rejectShiftLog(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        ShiftLog log = shiftLogRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Shift log not found"));
+
+        if (!log.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Log belongs to a different site");
+
+        if ("APPROVED".equals(log.getStatus()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot reject an already approved log");
+
+        log.setStatus("REJECTED");
+        log.setRejectedBy(user.fullName());
+        log.setRejectedAt(LocalDateTime.now());
+        ShiftLog saved = shiftLogRepository.save(log);
+
+        auditLogService.record(
+            "SHIFT_LOG_REJECTED",
+            user.role(), user.fullName(), user.email(),
+            "ShiftLog", id,
+            log.getMineralType() + " " + log.getVolumeExtracted() + " " + log.getUnit()
+                + " — " + log.getWorkerName()
+        );
+        return saved;
     }
 }

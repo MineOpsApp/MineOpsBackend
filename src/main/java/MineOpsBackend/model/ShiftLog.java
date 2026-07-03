@@ -30,6 +30,10 @@ public class ShiftLog {
     private String status;
     private String shiftDate;
     private LocalDateTime submittedAt;
+    private String approvedBy;
+    private LocalDateTime approvedAt;
+    private String rejectedBy;
+    private LocalDateTime rejectedAt;
 
     public ShiftLog() {}
 
@@ -90,4 +94,12 @@ public class ShiftLog {
     public void setShiftDate(String v) { this.shiftDate = v; }
     public LocalDateTime getSubmittedAt() { return submittedAt; }
     public void setSubmittedAt(LocalDateTime v) { this.submittedAt = v; }
+    public String getApprovedBy() { return approvedBy; }
+    public void setApprovedBy(String v) { this.approvedBy = v; }
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime v) { this.approvedAt = v; }
+    public String getRejectedBy() { return rejectedBy; }
+    public void setRejectedBy(String v) { this.rejectedBy = v; }
+    public LocalDateTime getRejectedAt() { return rejectedAt; }
+    public void setRejectedAt(LocalDateTime v) { this.rejectedAt = v; }
 }

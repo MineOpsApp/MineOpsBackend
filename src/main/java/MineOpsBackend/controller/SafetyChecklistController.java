@@ -29,7 +29,7 @@ public class SafetyChecklistController {
 
     public SafetyChecklistController(
         SafetyChecklistRepository checklistRepository,
-        AttendanceRecordRepository attendanceRepository,
+        AttendanceRepository attendanceRepository,
         AuditLogService auditLogService
     ) {
         this.checklistRepository = checklistRepository;
