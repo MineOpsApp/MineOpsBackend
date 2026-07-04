@@ -5,11 +5,13 @@ import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.PayCycle;
 import MineOpsBackend.model.ShiftLog;
 import MineOpsBackend.model.WorkerPayRecord;
+import MineOpsBackend.model.Site;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.AttendanceRepository;
 import MineOpsBackend.repository.PayCycleRepository;
 import MineOpsBackend.repository.PaySplitConfigRepository;
 import MineOpsBackend.repository.ShiftLogRepository;
+import MineOpsBackend.repository.SiteRepository;
 import MineOpsBackend.repository.WorkerPayRecordRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -35,6 +37,7 @@ public class PayCalculationService {
     private final PaySplitConfigRepository configRepo;
     private final AttendanceRepository attendanceRepo;
     private final AppUserRepository userRepo;
+    private final SiteRepository siteRepo;
 
     public PayCalculationService(
         ShiftLogRepository shiftLogRepo,
@@ -42,7 +45,8 @@ public class PayCalculationService {
         WorkerPayRecordRepository payRecordRepo,
         PaySplitConfigRepository configRepo,
         AttendanceRepository attendanceRepo,
-        AppUserRepository userRepo
+        AppUserRepository userRepo,
+        SiteRepository siteRepo
     ) {
         this.shiftLogRepo = shiftLogRepo;
         this.payCycleRepo = payCycleRepo;
@@ -50,6 +54,7 @@ public class PayCalculationService {
         this.configRepo = configRepo;
         this.attendanceRepo = attendanceRepo;
         this.userRepo = userRepo;
+        this.siteRepo = siteRepo;
     }
 
     @Transactional
@@ -119,6 +124,13 @@ public class PayCalculationService {
 
         Map<String, BigDecimal> hoursForRecord = computeHours(workerNames, periodStart, periodEnd, site);
 
+        Site siteConfig = siteRepo.findByNameIgnoreCase(site).orElse(null);
+        boolean deductFromPay = siteConfig != null
+            && siteConfig.isInsuranceEnabled()
+            && "DEDUCT_FROM_PAY".equals(siteConfig.getInsuranceDeductionMode());
+        BigDecimal premiumAmount = (deductFromPay && siteConfig != null && siteConfig.getInsurancePremium() != null)
+            ? siteConfig.getInsurancePremium() : BigDecimal.ZERO;
+
         List<WorkerPayRecord> records = new ArrayList<>();
         for (Map.Entry<String, String> entry : workerNames.entrySet()) {
             String email = entry.getKey();
@@ -126,7 +138,6 @@ public class PayCalculationService {
             BigDecimal share = shares.getOrDefault(email, BigDecimal.ZERO);
             BigDecimal hours = hoursForRecord.get(email);
             BigDecimal insurance = BigDecimal.ZERO;
-            BigDecimal net = share.subtract(insurance);
 
             String momoNumber = null;
             String momoNetwork = null;
@@ -134,7 +145,11 @@ public class PayCalculationService {
             if (user != null) {
                 momoNumber = user.getMomoNumber();
                 momoNetwork = user.getMomoNetwork();
+                if (deductFromPay && "INSURED".equals(user.getInsuranceStatus())) {
+                    insurance = premiumAmount;
+                }
             }
+            BigDecimal net = share.subtract(insurance);
 
             records.add(new WorkerPayRecord(cycle.getId(), email, name,
                 hours, share, insurance, net, momoNumber, momoNetwork));

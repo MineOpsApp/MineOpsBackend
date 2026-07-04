@@ -118,6 +118,7 @@ public class ProfileController {
         m.put("emergencyContactCount", contactCount);
         m.put("momoNumber", u.getMomoNumber());
         m.put("momoNetwork", u.getMomoNetwork());
+        m.put("insuranceStatus", u.getInsuranceStatus() != null ? u.getInsuranceStatus() : "NOT_INSURED");
         return m;
     }
 }

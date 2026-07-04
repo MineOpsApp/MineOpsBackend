@@ -1,10 +1,13 @@
 package MineOpsBackend.model;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "sites")
@@ -19,6 +22,14 @@ public class Site {
     private String status;
 
     private boolean inventoryVisibleToGuests = false;
+
+    private boolean insuranceEnabled = false;
+    private String insuranceProviderName;
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal insurancePremium;
+
+    private String insuranceDeductionMode = "DEDUCT_FROM_PAY";
 
     public Site() {
     }
@@ -55,4 +66,16 @@ public class Site {
     public void setInventoryVisibleToGuests(boolean inventoryVisibleToGuests) {
         this.inventoryVisibleToGuests = inventoryVisibleToGuests;
     }
+
+    public boolean isInsuranceEnabled() { return insuranceEnabled; }
+    public void setInsuranceEnabled(boolean insuranceEnabled) { this.insuranceEnabled = insuranceEnabled; }
+
+    public String getInsuranceProviderName() { return insuranceProviderName; }
+    public void setInsuranceProviderName(String insuranceProviderName) { this.insuranceProviderName = insuranceProviderName; }
+
+    public BigDecimal getInsurancePremium() { return insurancePremium; }
+    public void setInsurancePremium(BigDecimal insurancePremium) { this.insurancePremium = insurancePremium; }
+
+    public String getInsuranceDeductionMode() { return insuranceDeductionMode; }
+    public void setInsuranceDeductionMode(String insuranceDeductionMode) { this.insuranceDeductionMode = insuranceDeductionMode; }
 }

@@ -55,6 +55,9 @@ public class AppUser {
     private LocalDateTime inductionCompletedAt;
     private String phone;
 
+    private String insuranceStatus = "NOT_INSURED";
+    private LocalDateTime insuranceEnrolledAt;
+
     public AppUser() {
     }
 
@@ -134,4 +137,10 @@ public void setInductionCompletedAt(LocalDateTime v) { this.inductionCompletedAt
 
 public String getPhone() { return phone; }
 public void setPhone(String v) { this.phone = v; }
+
+public String getInsuranceStatus() { return insuranceStatus; }
+public void setInsuranceStatus(String v) { this.insuranceStatus = v; }
+
+public LocalDateTime getInsuranceEnrolledAt() { return insuranceEnrolledAt; }
+public void setInsuranceEnrolledAt(LocalDateTime v) { this.insuranceEnrolledAt = v; }
 }
