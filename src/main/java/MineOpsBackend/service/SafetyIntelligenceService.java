@@ -56,7 +56,7 @@ public class SafetyIntelligenceService {
 
         List<HazardReport> hazards = hazardRepo.findBySiteOrderByCreatedAtDesc(site).stream()
             .filter(h -> h.getCreatedAt() != null && h.getCreatedAt().isAfter(cutoff))
-            .filter(h -> !"CLOSED".equalsIgnoreCase(h.getStatus()))
+            .filter(h -> !"CLEARED".equalsIgnoreCase(h.getStatus()))
             .toList();
 
         List<IncidentReport> incidents = incidentRepo.findBySiteOrderByReportedAtDesc(site).stream()
