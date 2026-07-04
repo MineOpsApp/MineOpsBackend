@@ -10,6 +10,7 @@ public record RegisterRequest(
     @NotBlank @Size(min = 6, message = "Password must be at least 6 characters") String password,
     @NotBlank String role,
     String assignedSite,
-    String guestSubRole
+    String guestSubRole,
+    String businessName,
+    String verificationDocument
 ) {}
-

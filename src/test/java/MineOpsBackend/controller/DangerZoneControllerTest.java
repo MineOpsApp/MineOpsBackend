@@ -78,11 +78,12 @@ class DangerZoneControllerTest {
 
         assertThat(saved.getPolygonPoints()).isNotNull();
         // Deserialize and verify round-trip
-        var parsed = objectMapper.readValue(saved.getPolygonPoints(),
+        @SuppressWarnings("unchecked")
+        List<Map<?, ?>> parsed = (List<Map<?, ?>>) objectMapper.readValue(saved.getPolygonPoints(),
             objectMapper.getTypeFactory().constructCollectionType(List.class, Map.class));
         assertThat(parsed).hasSize(3);
-        assertThat(((Map<?, ?>) parsed.get(0)).get("x")).isEqualTo(10.0);
-        assertThat(((Map<?, ?>) parsed.get(2)).get("y")).isEqualTo(60.0);
+        assertThat(parsed.get(0).get("x")).isEqualTo(10.0);
+        assertThat(parsed.get(2).get("y")).isEqualTo(60.0);
     }
 
     @Test

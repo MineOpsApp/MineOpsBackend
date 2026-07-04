@@ -26,7 +26,7 @@ import java.util.Set;
 @RestController
 public class AuthController {
 
-    private static final Set<String> ALLOWED_ROLES = Set.of("worker", "guest");
+    private static final Set<String> ALLOWED_ROLES = Set.of("worker", "guest", "buyer");
 
     private final AppUserRepository appUserRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -52,6 +52,20 @@ public class AuthController {
         }
         if (appUserRepository.existsByEmailIgnoreCase(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
+        }
+
+        if ("buyer".equals(request.role())) {
+            AppUser buyer = new AppUser(
+                request.fullName().trim(), email,
+                passwordEncoder.encode(request.password()),
+                "buyer", null
+            );
+            buyer.setBuyerVerificationStatus("PENDING_VERIFICATION");
+            buyer.setPending(true);
+            if (request.businessName() != null) buyer.setBusinessName(request.businessName().trim());
+            if (request.verificationDocument() != null) buyer.setVerificationDocument(request.verificationDocument());
+            appUserRepository.save(buyer);
+            return ResponseEntity.ok(Map.of("pending", true));
         }
 
         String assignedSite = (request.assignedSite() == null || request.assignedSite().isBlank())

@@ -248,4 +248,58 @@ public Map<String, Object> rejectWorker(
     return Map.of("email", email.trim(), "rejected", true);
 }
 
+@GetMapping("/api/admin/buyers/pending")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public List<Map<String, Object>> getPendingBuyers() {
+    return appUserRepository.findByRoleAndPending("buyer", true)
+        .stream()
+        .map(u -> {
+            Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("id", u.getId());
+            map.put("fullName", u.getFullName());
+            map.put("email", u.getEmail());
+            map.put("businessName", u.getBusinessName());
+            map.put("createdAt", u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
+            return map;
+        })
+        .collect(java.util.stream.Collectors.toList());
+}
+
+@PostMapping("/api/admin/buyers/approve")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public Map<String, Object> approveBuyer(
+    @AuthenticationPrincipal AuthenticatedUser admin,
+    @RequestBody Map<String, String> body
+) {
+    String email = body.get("email");
+    if (email == null || email.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email required");
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found"));
+    user.setBuyerVerificationStatus("VERIFIED");
+    user.setPending(false);
+    appUserRepository.save(user);
+    auditLogService.record("BUYER_VERIFIED", admin.role(), admin.fullName(), admin.email(),
+        "AppUser", user.getId(), email.trim());
+    return Map.of("email", user.getEmail(), "fullName", user.getFullName(), "approved", true);
+}
+
+@PostMapping("/api/admin/buyers/reject")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public Map<String, Object> rejectBuyer(
+    @AuthenticationPrincipal AuthenticatedUser admin,
+    @RequestBody Map<String, String> body
+) {
+    String email = body.get("email");
+    if (email == null || email.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email required");
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found"));
+    if (!Boolean.TRUE.equals(user.getPending())) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not pending");
+    }
+    auditLogService.record("BUYER_REJECTED", admin.role(), admin.fullName(), admin.email(),
+        "AppUser", user.getId(), email.trim());
+    appUserRepository.delete(user);
+    return Map.of("email", email.trim(), "rejected", true);
+}
+
 }

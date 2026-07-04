@@ -18,6 +18,7 @@ public record AuthenticatedUser(
             case "supervisor" -> "ROLE_SUPERVISOR";
             case "safetyOfficer" -> "ROLE_SAFETY_OFFICER";
             case "guest" -> "ROLE_GUEST";
+            case "buyer" -> "ROLE_BUYER";
             default -> "ROLE_UNKNOWN";
         };
     }

@@ -58,6 +58,11 @@ public class AppUser {
     private String insuranceStatus = "NOT_INSURED";
     private LocalDateTime insuranceEnrolledAt;
 
+    private String businessName;
+    private String buyerVerificationStatus;
+    @Column(columnDefinition = "TEXT")
+    private String verificationDocument;
+
     public AppUser() {
     }
 
@@ -143,4 +148,13 @@ public void setInsuranceStatus(String v) { this.insuranceStatus = v; }
 
 public LocalDateTime getInsuranceEnrolledAt() { return insuranceEnrolledAt; }
 public void setInsuranceEnrolledAt(LocalDateTime v) { this.insuranceEnrolledAt = v; }
+
+public String getBusinessName() { return businessName; }
+public void setBusinessName(String v) { this.businessName = v; }
+
+public String getBuyerVerificationStatus() { return buyerVerificationStatus; }
+public void setBuyerVerificationStatus(String v) { this.buyerVerificationStatus = v; }
+
+public String getVerificationDocument() { return verificationDocument; }
+public void setVerificationDocument(String v) { this.verificationDocument = v; }
 }
