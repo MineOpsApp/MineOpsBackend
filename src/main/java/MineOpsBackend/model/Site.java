@@ -31,6 +31,14 @@ public class Site {
 
     private String insuranceDeductionMode = "DEDUCT_FROM_PAY";
 
+    @Column(length = 500)
+    private String mineralsProduced;
+    private String productionCapacity;
+    private Integer establishedYear;
+    @Column(length = 1000)
+    private String profileDescription;
+    private String contactEmail;
+
     public Site() {
     }
 
@@ -78,4 +86,19 @@ public class Site {
 
     public String getInsuranceDeductionMode() { return insuranceDeductionMode; }
     public void setInsuranceDeductionMode(String insuranceDeductionMode) { this.insuranceDeductionMode = insuranceDeductionMode; }
+
+    public String getMineralsProduced() { return mineralsProduced; }
+    public void setMineralsProduced(String v) { this.mineralsProduced = v; }
+
+    public String getProductionCapacity() { return productionCapacity; }
+    public void setProductionCapacity(String v) { this.productionCapacity = v; }
+
+    public Integer getEstablishedYear() { return establishedYear; }
+    public void setEstablishedYear(Integer v) { this.establishedYear = v; }
+
+    public String getProfileDescription() { return profileDescription; }
+    public void setProfileDescription(String v) { this.profileDescription = v; }
+
+    public String getContactEmail() { return contactEmail; }
+    public void setContactEmail(String v) { this.contactEmail = v; }
 }

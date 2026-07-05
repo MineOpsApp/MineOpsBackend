@@ -19,5 +19,6 @@ public interface HazardReportRepository extends JpaRepository<HazardReport, Long
     Page<HazardReport> findBySiteOrderByCreatedAtDesc(String site, Pageable pageable);
 
     List<HazardReport> findBySiteAndStatusOrderByCreatedAtDesc(String site, String status);
+    List<HazardReport> findBySiteAndStatusNotAndCreatedAtAfter(String site, String status, java.time.LocalDateTime after);
 }
 
