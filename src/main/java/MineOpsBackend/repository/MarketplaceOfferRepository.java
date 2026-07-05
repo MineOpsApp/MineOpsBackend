@@ -8,4 +8,5 @@ import java.util.List;
 public interface MarketplaceOfferRepository extends JpaRepository<MarketplaceOffer, Long> {
     List<MarketplaceOffer> findByBuyerEmailOrderByCreatedAtAsc(String buyerEmail);
     List<MarketplaceOffer> findByListingIdOrderByCreatedAtAsc(Long listingId);
+    long countByListingIdInAndStatus(List<Long> listingIds, String status);
 }

@@ -10,4 +10,5 @@ public interface TransactionDisputeRepository extends JpaRepository<TransactionD
     Optional<TransactionDispute> findByTransactionId(Long transactionId);
     boolean existsByTransactionId(Long transactionId);
     List<TransactionDispute> findByStatus(String status);
+    long countByTransactionIdInAndStatus(List<Long> transactionIds, String status);
 }

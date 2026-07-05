@@ -3,6 +3,8 @@ package MineOpsBackend.controller;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.repository.*;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.SafetyIntelligenceService;
+import MineOpsBackend.service.SafetyScoreService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,6 +30,12 @@ public class SupervisorDashboardController {
     private final ShiftAnnouncementRepository announcementRepo;
     private final CertificationRepository certRepo;
     private final LoneWorkerRepository loneWorkerRepo;
+    private final SafetyScoreService safetyScoreService;
+    private final SafetyIntelligenceService safetyIntelligenceService;
+    private final MineralListingRepository listingRepo;
+    private final MarketplaceOfferRepository offerRepo;
+    private final MarketplaceTransactionRepository txRepo;
+    private final TransactionDisputeRepository disputeRepo;
 
     public SupervisorDashboardController(
         AppUserRepository userRepo,
@@ -38,7 +46,13 @@ public class SupervisorDashboardController {
         WorkerMessageRepository messageRepo,
         ShiftAnnouncementRepository announcementRepo,
         CertificationRepository certRepo,
-        LoneWorkerRepository loneWorkerRepo
+        LoneWorkerRepository loneWorkerRepo,
+        SafetyScoreService safetyScoreService,
+        SafetyIntelligenceService safetyIntelligenceService,
+        MineralListingRepository listingRepo,
+        MarketplaceOfferRepository offerRepo,
+        MarketplaceTransactionRepository txRepo,
+        TransactionDisputeRepository disputeRepo
     ) {
         this.userRepo = userRepo;
         this.hazardRepo = hazardRepo;
@@ -49,6 +63,12 @@ public class SupervisorDashboardController {
         this.announcementRepo = announcementRepo;
         this.certRepo = certRepo;
         this.loneWorkerRepo = loneWorkerRepo;
+        this.safetyScoreService = safetyScoreService;
+        this.safetyIntelligenceService = safetyIntelligenceService;
+        this.listingRepo = listingRepo;
+        this.offerRepo = offerRepo;
+        this.txRepo = txRepo;
+        this.disputeRepo = disputeRepo;
     }
 
     @GetMapping("/api/supervisor/dashboard")
@@ -65,6 +85,20 @@ public class SupervisorDashboardController {
         long unreadMessages = messageRepo.countBySiteIgnoreCaseAndReadAtIsNull(site);
         long certExpired = certRepo.countBySiteIgnoreCaseAndStatus(site, "EXPIRED");
         long certExpiringSoon = certRepo.countBySiteIgnoreCaseAndStatus(site, "EXPIRING_SOON");
+
+        int safetyScore = safetyScoreService.computeScore(site);
+        int safetyRecommendationCount = safetyIntelligenceService.getRecommendations(site).size();
+        long pendingBuyerVerifications = userRepo.findByRoleAndPending("buyer", true).size();
+
+        List<Long> listingIds = listingRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(site)
+                .stream().map(l -> (Long) l.getId()).collect(Collectors.toList());
+        long pendingMarketplaceOffers = listingIds.isEmpty() ? 0
+                : offerRepo.countByListingIdInAndStatus(listingIds, "PENDING");
+
+        List<Long> txIds = txRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(site)
+                .stream().map(t -> (Long) t.getId()).collect(Collectors.toList());
+        long openDisputes = txIds.isEmpty() ? 0
+                : disputeRepo.countByTransactionIdInAndStatus(txIds, "OPEN");
 
         List<Map<String, Object>> announcements = announcementRepo
             .findBySiteIgnoreCaseAndCreatedAtAfterOrderByCreatedAtDesc(site, LocalDateTime.now().minusHours(24))
@@ -99,6 +133,11 @@ public class SupervisorDashboardController {
         result.put("certExpiringSoon", certExpiringSoon);
         result.put("announcements", announcements);
         result.put("activeLoneWorkers", activeLoneWorkers);
+        result.put("safetyScore", safetyScore);
+        result.put("safetyRecommendationCount", safetyRecommendationCount);
+        result.put("pendingBuyerVerifications", pendingBuyerVerifications);
+        result.put("pendingMarketplaceOffers", pendingMarketplaceOffers);
+        result.put("openDisputes", openDisputes);
         return result;
     }
 }
