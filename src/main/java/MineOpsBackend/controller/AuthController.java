@@ -64,6 +64,8 @@ public class AuthController {
             buyer.setPending(true);
             if (request.businessName() != null) buyer.setBusinessName(request.businessName().trim());
             if (request.verificationDocument() != null) buyer.setVerificationDocument(request.verificationDocument());
+            if (request.goldbodLicenseNumber() != null && !request.goldbodLicenseNumber().isBlank())
+                buyer.setGoldbodLicenseNumber(request.goldbodLicenseNumber().trim());
             appUserRepository.save(buyer);
             return ResponseEntity.ok(Map.of("pending", true));
         }
@@ -180,6 +182,7 @@ public class AuthController {
         userMap.put("role", user.getRole());
         userMap.put("assignedSite", user.getAssignedSite());
         userMap.put("guestSubRole", user.getGuestSubRole());
+        userMap.put("goldbodLicenseNumber", user.getGoldbodLicenseNumber());
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("token", jwtService.createToken(user));

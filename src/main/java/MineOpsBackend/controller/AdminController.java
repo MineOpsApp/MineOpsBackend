@@ -262,6 +262,7 @@ public List<Map<String, Object>> getPendingBuyers() {
             map.put("fullName", u.getFullName());
             map.put("email", u.getEmail());
             map.put("businessName", u.getBusinessName());
+            map.put("goldbodLicenseNumber", u.getGoldbodLicenseNumber());
             map.put("createdAt", u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
             return map;
         })

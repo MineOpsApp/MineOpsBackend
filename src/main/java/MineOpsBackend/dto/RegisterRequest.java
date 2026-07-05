@@ -12,5 +12,6 @@ public record RegisterRequest(
     String assignedSite,
     String guestSubRole,
     String businessName,
-    String verificationDocument
+    String verificationDocument,
+    String goldbodLicenseNumber
 ) {}

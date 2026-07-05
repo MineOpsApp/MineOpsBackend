@@ -69,6 +69,13 @@ public class MarketplaceOfferController {
         if (!"ACTIVE".equals(listing.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Listing is no longer active");
         }
+        if ("gold".equalsIgnoreCase(listing.getMineralType())) {
+            String license = buyer.getGoldbodLicenseNumber();
+            if (license == null || license.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "A GoldBod license number is required to offer on gold listings");
+            }
+        }
         MarketplaceOffer offer = new MarketplaceOffer();
         offer.setListingId(listingId);
         offer.setBuyerEmail(user.email());

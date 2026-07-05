@@ -61,6 +61,7 @@ public class AppUser {
     private LocalDateTime insuranceEnrolledAt;
 
     private String businessName;
+    private String goldbodLicenseNumber;
     private String buyerVerificationStatus;
     @Column(columnDefinition = "TEXT")
     private String verificationDocument;
@@ -157,6 +158,9 @@ public void setInsuranceEnrolledAt(LocalDateTime v) { this.insuranceEnrolledAt =
 
 public String getBusinessName() { return businessName; }
 public void setBusinessName(String v) { this.businessName = v; }
+
+public String getGoldbodLicenseNumber() { return goldbodLicenseNumber; }
+public void setGoldbodLicenseNumber(String v) { this.goldbodLicenseNumber = v; }
 
 public String getBuyerVerificationStatus() { return buyerVerificationStatus; }
 public void setBuyerVerificationStatus(String v) { this.buyerVerificationStatus = v; }
