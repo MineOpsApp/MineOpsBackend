@@ -28,7 +28,7 @@ public class CommunityEventController {
     }
 
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public List<CommunityEvent> getEvents() {
         return eventRepo.findAllByOrderByEventDateAsc();
     }

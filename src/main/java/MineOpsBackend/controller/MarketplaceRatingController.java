@@ -35,7 +35,7 @@ public class MarketplaceRatingController {
     }
 
     @PostMapping("/transactions/{id}/ratings")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public MarketplaceRating submitRating(@PathVariable Long id,
                                           @AuthenticationPrincipal AuthenticatedUser user,
                                           @RequestBody Map<String, Object> body) {
@@ -68,10 +68,13 @@ public class MarketplaceRatingController {
         rating.setReliability(reliability);
         rating.setCommunication(communication);
 
-        Object pq = body.get("productQuality");
-        if (pq != null) rating.setProductQuality(toInt(pq));
-        Object la = body.get("listingAccuracy");
-        if (la != null) rating.setListingAccuracy(toInt(la));
+        // productQuality and listingAccuracy are buyer-perspective metrics — only buyers set them
+        if (isBuyer) {
+            Object pq = body.get("productQuality");
+            if (pq != null) rating.setProductQuality(toInt(pq));
+            Object la = body.get("listingAccuracy");
+            if (la != null) rating.setListingAccuracy(toInt(la));
+        }
 
         Object comment = body.get("comment");
         if (comment instanceof String s) rating.setComment(s.trim());
@@ -81,7 +84,7 @@ public class MarketplaceRatingController {
     }
 
     @GetMapping("/mines/{siteName}/ratings")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public List<MarketplaceRating> getMineRatings(@PathVariable String siteName) {
         List<Long> txIds = txRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(siteName)
                 .stream().map(MarketplaceTransaction::getId).collect(Collectors.toList());
@@ -92,7 +95,7 @@ public class MarketplaceRatingController {
     }
 
     @GetMapping("/buyers/{email}/ratings")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public List<MarketplaceRating> getBuyerRatings(@PathVariable String email) {
         List<Long> txIds = txRepo.findByBuyerEmailOrderByCreatedAtDesc(email)
                 .stream().map(MarketplaceTransaction::getId).collect(Collectors.toList());

@@ -38,7 +38,7 @@ public class CommunityDirectoryController {
     }
 
     @GetMapping("/mines")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public List<Map<String, Object>> getMines() {
         return siteRepo.findAll().stream()
                 .map(this::toMineProfile)
@@ -46,7 +46,7 @@ public class CommunityDirectoryController {
     }
 
     @GetMapping("/mines/{siteName}")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public Map<String, Object> getMine(@PathVariable String siteName) {
         Site site = siteRepo.findByNameIgnoreCase(siteName)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Site not found"));
@@ -54,9 +54,9 @@ public class CommunityDirectoryController {
     }
 
     @GetMapping("/buyers")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public List<Map<String, Object>> getVerifiedBuyers() {
-        return userRepo.findByRoleAndBuyerVerificationStatus("BUYER", "VERIFIED").stream()
+        return userRepo.findByRoleAndBuyerVerificationStatus("buyer", "VERIFIED").stream()
                 .map(this::toBuyerProfile)
                 .collect(Collectors.toList());
     }

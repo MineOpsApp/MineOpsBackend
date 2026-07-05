@@ -24,6 +24,9 @@ import java.util.Map;
 @RequestMapping("/api/community")
 public class TransactionDisputeController {
 
+    private static final String COMMUNITY_ROLES =
+            "hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')";
+
     private final MarketplaceTransactionRepository txRepo;
     private final TransactionDisputeRepository disputeRepo;
 
@@ -34,7 +37,7 @@ public class TransactionDisputeController {
     }
 
     @PostMapping("/transactions/{id}/dispute")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(COMMUNITY_ROLES)
     public TransactionDispute raiseDispute(@PathVariable Long id,
                                            @AuthenticationPrincipal AuthenticatedUser user,
                                            @RequestBody Map<String, String> body) {
@@ -66,7 +69,7 @@ public class TransactionDisputeController {
     }
 
     @GetMapping("/transactions/{id}/dispute")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(COMMUNITY_ROLES)
     public TransactionDispute getDispute(@PathVariable Long id,
                                          @AuthenticationPrincipal AuthenticatedUser user) {
         MarketplaceTransaction tx = txRepo.findById(id)
@@ -85,9 +88,17 @@ public class TransactionDisputeController {
     @PatchMapping("/disputes/{disputeId}/resolve")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER')")
     public TransactionDispute resolveDispute(@PathVariable Long disputeId,
+                                              @AuthenticationPrincipal AuthenticatedUser user,
                                               @RequestBody Map<String, String> body) {
         TransactionDispute dispute = disputeRepo.findById(disputeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Dispute not found"));
+
+        MarketplaceTransaction tx = txRepo.findById(dispute.getTransactionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
+        if (user.assignedSite() == null || !user.assignedSite().equalsIgnoreCase(tx.getSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Can only resolve disputes for your site's transactions");
+        }
 
         if (!"OPEN".equals(dispute.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Dispute is already resolved");

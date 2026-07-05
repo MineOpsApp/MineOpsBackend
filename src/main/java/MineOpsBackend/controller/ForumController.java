@@ -1,7 +1,9 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.ForumPost;
 import MineOpsBackend.model.ForumReply;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.ForumPostRepository;
 import MineOpsBackend.repository.ForumReplyRepository;
 import MineOpsBackend.security.AuthenticatedUser;
@@ -25,18 +27,27 @@ import java.util.Map;
 @RequestMapping("/api/forum")
 public class ForumController {
 
+    private static final String COMMUNITY_ROLES =
+            "hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')";
+
     private final ForumPostRepository postRepo;
     private final ForumReplyRepository replyRepo;
+    private final AppUserRepository userRepo;
 
-    public ForumController(ForumPostRepository postRepo, ForumReplyRepository replyRepo) {
+    public ForumController(ForumPostRepository postRepo,
+                           ForumReplyRepository replyRepo,
+                           AppUserRepository userRepo) {
         this.postRepo = postRepo;
         this.replyRepo = replyRepo;
+        this.userRepo = userRepo;
     }
 
     @GetMapping("/posts")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(COMMUNITY_ROLES)
     public List<ForumPost> getPosts(@RequestParam(required = false) String subforum,
-                                    @RequestParam(required = false) String category) {
+                                    @RequestParam(required = false) String category,
+                                    @AuthenticationPrincipal AuthenticatedUser user) {
+        checkSubforumAccess(subforum, user);
         if (subforum != null && category != null) {
             return postRepo.findBySubforumAndCategoryOrderByCreatedAtDesc(subforum, category);
         } else if (subforum != null) {
@@ -46,7 +57,7 @@ public class ForumController {
     }
 
     @PostMapping("/posts")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(COMMUNITY_ROLES)
     public ForumPost createPost(@AuthenticationPrincipal AuthenticatedUser user,
                                 @RequestBody Map<String, String> body) {
         String title = body.get("title");
@@ -60,6 +71,8 @@ public class ForumController {
         if (postBody == null || postBody.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "body is required");
         }
+
+        checkSubforumAccess(subforum, user);
 
         ForumPost post = new ForumPost();
         post.setTitle(title.trim());
@@ -75,7 +88,7 @@ public class ForumController {
     }
 
     @GetMapping("/posts/{postId}/replies")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(COMMUNITY_ROLES)
     public List<ForumReply> getReplies(@PathVariable Long postId) {
         postRepo.findById(postId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
@@ -83,7 +96,7 @@ public class ForumController {
     }
 
     @PostMapping("/posts/{postId}/replies")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize(COMMUNITY_ROLES)
     public ForumReply createReply(@PathVariable Long postId,
                                   @AuthenticationPrincipal AuthenticatedUser user,
                                   @RequestBody Map<String, String> body) {
@@ -108,5 +121,26 @@ public class ForumController {
         postRepo.save(post);
 
         return saved;
+    }
+
+    private void checkSubforumAccess(String subforum, AuthenticatedUser user) {
+        if (subforum == null) return;
+        if ("mine_operator".equalsIgnoreCase(subforum)) {
+            if (!"ROLE_SUPERVISOR".equals(user.authority())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Mine-operator subforum requires supervisor role");
+            }
+        } else if ("buyer".equalsIgnoreCase(subforum)) {
+            if (!"ROLE_BUYER".equals(user.authority())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Buyer subforum requires buyer role");
+            }
+            AppUser buyerUser = userRepo.findById(user.id())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+            if (!"VERIFIED".equals(buyerUser.getBuyerVerificationStatus())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Buyer account not yet verified");
+            }
+        }
     }
 }

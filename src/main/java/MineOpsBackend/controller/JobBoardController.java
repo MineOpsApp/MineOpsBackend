@@ -34,7 +34,7 @@ public class JobBoardController {
     }
 
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public List<JobPosting> getJobs() {
         return jobRepo.findByStatusOrderByCreatedAtDesc("OPEN");
     }
@@ -75,7 +75,7 @@ public class JobBoardController {
     }
 
     @PostMapping("/{id}/interest")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public JobInterest expressInterest(@PathVariable Long id,
                                        @AuthenticationPrincipal AuthenticatedUser user,
                                        @RequestBody Map<String, String> body) {
