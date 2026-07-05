@@ -6,6 +6,7 @@ import MineOpsBackend.model.AppUser;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,11 +27,13 @@ public class AdminController {
 
     private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public AdminController(AppUserRepository appUserRepository, AuditLogService auditLogService) {
+    public AdminController(AppUserRepository appUserRepository, AuditLogService auditLogService, NotificationService notificationService) {
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/api/admin/guests/renew")
@@ -278,6 +281,8 @@ public Map<String, Object> approveBuyer(
     user.setBuyerVerificationStatus("VERIFIED");
     user.setPending(false);
     appUserRepository.save(user);
+    notificationService.notify(user.getEmail(), "BUYER_VERIFICATION", "Account Verified",
+        "Your buyer account has been verified. You can now access the marketplace.", "AppUser", user.getId());
     auditLogService.record("BUYER_VERIFIED", admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
     return Map.of("email", user.getEmail(), "fullName", user.getFullName(), "approved", true);
@@ -296,6 +301,8 @@ public Map<String, Object> rejectBuyer(
     if (!Boolean.TRUE.equals(user.getPending())) {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not pending");
     }
+    notificationService.notify(user.getEmail(), "BUYER_VERIFICATION", "Account Rejected",
+        "Your buyer account application was not approved.", "AppUser", user.getId());
     auditLogService.record("BUYER_REJECTED", admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
     appUserRepository.delete(user);

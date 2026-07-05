@@ -10,6 +10,7 @@ import MineOpsBackend.repository.MarketplaceOfferRepository;
 import MineOpsBackend.repository.MarketplaceTransactionRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,19 +34,22 @@ public class MarketplaceOfferController {
     private final MarketplaceTransactionRepository transactionRepo;
     private final AppUserRepository userRepo;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
 
     public MarketplaceOfferController(
         MarketplaceOfferRepository offerRepo,
         MineralListingRepository listingRepo,
         MarketplaceTransactionRepository transactionRepo,
         AppUserRepository userRepo,
-        AuditLogService auditLogService
+        AuditLogService auditLogService,
+        NotificationService notificationService
     ) {
         this.offerRepo = offerRepo;
         this.listingRepo = listingRepo;
         this.transactionRepo = transactionRepo;
         this.userRepo = userRepo;
         this.auditLogService = auditLogService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/api/marketplace/listings/{listingId}/offers")
@@ -130,6 +134,8 @@ public class MarketplaceOfferController {
         counter.setStatus("PENDING");
         counter.setCreatedAt(LocalDateTime.now());
         MarketplaceOffer saved = offerRepo.save(counter);
+        notificationService.notify(original.getBuyerEmail(), "OFFER", "Counter Offer Received",
+            "A counter offer has been made on your offer for " + listing.getMineralType() + ".", "MarketplaceOffer", saved.getId());
         auditLogService.record("OFFER_COUNTERED", user.role(), user.fullName(), user.email(),
             "MARKETPLACE_OFFER", id, "counter=" + saved.getId());
         return saved;
@@ -171,6 +177,8 @@ public class MarketplaceOfferController {
         tx.setBatchStatus("PREPARING");
         tx.setCreatedAt(LocalDateTime.now());
         MarketplaceTransaction saved = transactionRepo.save(tx);
+        notificationService.notify(offer.getBuyerEmail(), "OFFER", "Offer Accepted",
+            "Your offer for " + listing.getMineralType() + " has been accepted. A transaction has been created.", "MarketplaceTransaction", saved.getId());
         auditLogService.record("OFFER_ACCEPTED", user.role(), user.fullName(), user.email(),
             "MARKETPLACE_OFFER", id, "transaction=" + saved.getId());
         return saved;
@@ -196,6 +204,8 @@ public class MarketplaceOfferController {
         offer.setRespondedAt(LocalDateTime.now());
         offer.setRespondedBy(user.email());
         offerRepo.save(offer);
+        notificationService.notify(offer.getBuyerEmail(), "OFFER", "Offer Rejected",
+            "Your offer for " + listing.getMineralType() + " was not accepted.", "MarketplaceOffer", id);
         auditLogService.record("OFFER_REJECTED", user.role(), user.fullName(), user.email(),
             "MARKETPLACE_OFFER", id, "buyer=" + offer.getBuyerEmail());
         return offer;

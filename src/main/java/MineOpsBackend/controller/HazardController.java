@@ -9,6 +9,7 @@ import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.HazardReportRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
 import MineOpsBackend.util.CsvExportUtil;
 import jakarta.validation.Valid;
@@ -37,17 +38,20 @@ public class HazardController {
     private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
     private final PushNotificationService pushNotificationService;
+    private final NotificationService notificationService;
 
     public HazardController(
         HazardReportRepository hazardReportRepository,
         AppUserRepository appUserRepository,
         AuditLogService auditLogService,
-        PushNotificationService pushNotificationService
+        PushNotificationService pushNotificationService,
+        NotificationService notificationService
     ) {
         this.hazardReportRepository = hazardReportRepository;
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.pushNotificationService = pushNotificationService;
+        this.notificationService = notificationService;
     }
 
     @GetMapping("/api/hazards")
@@ -99,24 +103,28 @@ public class HazardController {
             saved.getHazardType() + " at " + saved.getLocation()
         );
 
-        // Send push notification for High and Critical hazards
+        // Send push + in-app notification for High and Critical hazards
         try {
             String severity = request.severity() != null ? request.severity() : "Medium";
             if ("High".equals(severity) || "Critical".equals(severity)) {
-                List<String> tokens = appUserRepository.findByAssignedSiteIgnoreCase(request.site())
+                List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(request.site())
                     .stream()
                     .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
-                    .map(AppUser::getPushToken)
-                    .filter(t -> t != null && !t.isBlank())
                     .collect(Collectors.toList());
 
                 String emoji = "Critical".equals(severity) ? "🔴" : "🟠";
-                pushNotificationService.sendToTokens(
-                    tokens,
-                    emoji + " " + severity + " Hazard — " + request.site(),
-                    user.fullName() + " reported: " + request.hazardType() + " at " + request.location(),
-                    "default"
-                );
+                String notifTitle = emoji + " " + severity + " Hazard — " + request.site();
+                String notifBody = user.fullName() + " reported: " + request.hazardType() + " at " + request.location();
+
+                List<String> tokens = recipients.stream()
+                    .map(AppUser::getPushToken)
+                    .filter(t -> t != null && !t.isBlank())
+                    .collect(Collectors.toList());
+                pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "default");
+
+                for (AppUser recipient : recipients) {
+                    notificationService.notify(recipient.getEmail(), "HAZARD", notifTitle, notifBody, "HazardReport", saved.getId());
+                }
             }
         } catch (Exception e) {
             System.err.println("Push notification failed for hazard: " + e.getMessage());

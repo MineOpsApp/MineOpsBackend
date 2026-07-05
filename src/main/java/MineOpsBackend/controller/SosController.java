@@ -7,6 +7,7 @@ import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.SosAlertRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,17 +28,20 @@ public class SosController {
     private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
     private final PushNotificationService pushNotificationService;
+    private final NotificationService notificationService;
 
     public SosController(
         SosAlertRepository sosAlertRepository,
         AppUserRepository appUserRepository,
         AuditLogService auditLogService,
-        PushNotificationService pushNotificationService
+        PushNotificationService pushNotificationService,
+        NotificationService notificationService
     ) {
         this.sosAlertRepository = sosAlertRepository;
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.pushNotificationService = pushNotificationService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/api/sos")
@@ -66,19 +70,23 @@ public class SosController {
 
         // Notify everyone on the same site
         try {
-            List<String> tokens = appUserRepository.findByAssignedSiteIgnoreCase(site)
+            String notifTitle = "🚨 SOS ALERT — " + site;
+            String notifBody = user.fullName() + " has triggered an emergency alert. Respond immediately.";
+
+            List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(site)
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .collect(Collectors.toList());
+
+            List<String> tokens = recipients.stream()
                 .map(AppUser::getPushToken)
                 .filter(t -> t != null && !t.isBlank())
                 .collect(Collectors.toList());
+            pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "sos");
 
-            pushNotificationService.sendToTokens(
-                tokens,
-                "🚨 SOS ALERT — " + site,
-                user.fullName() + " has triggered an emergency alert. Respond immediately.",
-                "sos"
-            );
+            for (AppUser recipient : recipients) {
+                notificationService.notify(recipient.getEmail(), "SOS", notifTitle, notifBody, "SosAlert", saved.getId());
+            }
         } catch (Exception e) {
             System.err.println("Push notification failed for SOS: " + e.getMessage());
         }

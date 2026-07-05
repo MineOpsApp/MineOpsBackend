@@ -8,6 +8,7 @@ import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.IncidentReportRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
 import MineOpsBackend.util.CsvExportUtil;
 import jakarta.validation.Valid;
@@ -35,17 +36,20 @@ public class IncidentController {
     private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
     private final PushNotificationService pushNotificationService;
+    private final NotificationService notificationService;
 
     public IncidentController(
         IncidentReportRepository incidentReportRepository,
         AppUserRepository appUserRepository,
         AuditLogService auditLogService,
-        PushNotificationService pushNotificationService
+        PushNotificationService pushNotificationService,
+        NotificationService notificationService
     ) {
         this.incidentReportRepository = incidentReportRepository;
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.pushNotificationService = pushNotificationService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/api/incidents")
@@ -81,19 +85,23 @@ public class IncidentController {
         if ("Serious".equals(request.severity()) || "Critical".equals(request.severity())) {
             try {
                 String emoji = "Critical".equals(request.severity()) ? "🔴" : "🟠";
-                List<String> tokens = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+                String notifTitle = emoji + " " + request.severity() + " Incident — " + user.assignedSite();
+                String notifBody = request.category() + " in " + request.zone() + " reported by " + user.fullName();
+
+                List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                     .stream()
                     .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
+                    .collect(Collectors.toList());
+
+                List<String> tokens = recipients.stream()
                     .map(AppUser::getPushToken)
                     .filter(t -> t != null && !t.isBlank())
                     .collect(Collectors.toList());
+                pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "sos");
 
-                pushNotificationService.sendToTokens(
-                    tokens,
-                    emoji + " " + request.severity() + " Incident — " + user.assignedSite(),
-                    request.category() + " in " + request.zone() + " reported by " + user.fullName(),
-                    "sos"
-                );
+                for (AppUser recipient : recipients) {
+                    notificationService.notify(recipient.getEmail(), "INCIDENT", notifTitle, notifBody, "IncidentReport", saved.getId());
+                }
             } catch (Exception e) {
                 System.err.println("Push notification failed for incident: " + e.getMessage());
             }

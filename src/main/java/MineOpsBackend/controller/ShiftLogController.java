@@ -6,6 +6,7 @@ import MineOpsBackend.repository.ShiftLogRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.MineralInventoryService;
+import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.util.CsvExportUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -43,15 +44,18 @@ public class ShiftLogController {
     private final ShiftLogRepository shiftLogRepository;
     private final AuditLogService auditLogService;
     private final MineralInventoryService inventoryService;
+    private final NotificationService notificationService;
 
     public ShiftLogController(
         ShiftLogRepository shiftLogRepository,
         AuditLogService auditLogService,
-        MineralInventoryService inventoryService
+        MineralInventoryService inventoryService,
+        NotificationService notificationService
     ) {
         this.shiftLogRepository = shiftLogRepository;
         this.auditLogService = auditLogService;
         this.inventoryService = inventoryService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/api/shift-logs")
@@ -162,6 +166,8 @@ return saved;
         ShiftLog saved = shiftLogRepository.save(log);
 
         inventoryService.applyApprovedShiftLog(saved, user.fullName());
+        notificationService.notify(saved.getWorkerEmail(), "SHIFT_LOG", "Shift Log Approved",
+            "Your " + saved.getMineralType() + " shift log has been approved.", "ShiftLog", saved.getId());
 
         auditLogService.record(
             "SHIFT_LOG_APPROVED",
@@ -192,6 +198,9 @@ return saved;
         log.setRejectedBy(user.fullName());
         log.setRejectedAt(LocalDateTime.now());
         ShiftLog saved = shiftLogRepository.save(log);
+
+        notificationService.notify(saved.getWorkerEmail(), "SHIFT_LOG", "Shift Log Rejected",
+            "Your " + saved.getMineralType() + " shift log was rejected.", "ShiftLog", saved.getId());
 
         auditLogService.record(
             "SHIFT_LOG_REJECTED",

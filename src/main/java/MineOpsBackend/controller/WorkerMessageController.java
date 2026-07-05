@@ -5,6 +5,7 @@ import MineOpsBackend.model.WorkerMessage;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.WorkerMessageRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,15 +26,18 @@ public class WorkerMessageController {
     private final WorkerMessageRepository messageRepo;
     private final AppUserRepository userRepo;
     private final PushNotificationService pushService;
+    private final NotificationService notificationService;
 
     public WorkerMessageController(
         WorkerMessageRepository messageRepo,
         AppUserRepository userRepo,
-        PushNotificationService pushService
+        PushNotificationService pushService,
+        NotificationService notificationService
     ) {
         this.messageRepo = messageRepo;
         this.userRepo = userRepo;
         this.pushService = pushService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping
@@ -128,10 +132,13 @@ public class WorkerMessageController {
         msg.setRepliedAt(LocalDateTime.now());
         messageRepo.save(msg);
 
+        String replyPreview = reply.length() > 80 ? reply.substring(0, 77) + "..." : reply;
+        notificationService.notify(msg.getSenderEmail(), "MESSAGE",
+            supervisor.getFullName() + " replied to your message", replyPreview, "WorkerMessage", id);
+
         userRepo.findByEmailIgnoreCase(msg.getSenderEmail()).ifPresent(worker -> {
             String token = worker.getPushToken();
             if (token != null && !token.isBlank()) {
-                String replyPreview = reply.length() > 80 ? reply.substring(0, 77) + "..." : reply;
                 pushService.sendToToken(token,
                     supervisor.getFullName() + " replied to your message",
                     replyPreview,

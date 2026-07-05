@@ -7,6 +7,7 @@ import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.BlastScheduleRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -32,17 +33,20 @@ public class BlastController {
     private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
     private final PushNotificationService pushNotificationService;
+    private final NotificationService notificationService;
 
     public BlastController(
         BlastScheduleRepository blastScheduleRepository,
         AppUserRepository appUserRepository,
         AuditLogService auditLogService,
-        PushNotificationService pushNotificationService
+        PushNotificationService pushNotificationService,
+        NotificationService notificationService
     ) {
         this.blastScheduleRepository = blastScheduleRepository;
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.pushNotificationService = pushNotificationService;
+        this.notificationService = notificationService;
     }
 
     @PostMapping("/api/blasts")
@@ -72,20 +76,23 @@ public class BlastController {
         try {
             long minutesUntil = java.time.Duration.between(
                 LocalDateTime.now(java.time.ZoneOffset.UTC), blastTime).toMinutes();
+            String notifTitle = "💥 Blast Scheduled — " + request.zone();
+            String notifBody = "Blasting in " + request.zone() + " in " + minutesUntil + " minutes. Clear the area immediately.";
 
-            List<String> tokens = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+            List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .collect(Collectors.toList());
+
+            List<String> tokens = recipients.stream()
                 .map(AppUser::getPushToken)
                 .filter(t -> t != null && !t.isBlank())
                 .collect(Collectors.toList());
+            pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "sos");
 
-            pushNotificationService.sendToTokens(
-                tokens,
-                "💥 Blast Scheduled — " + request.zone(),
-                "Blasting in " + request.zone() + " in " + minutesUntil + " minutes. Clear the area immediately.",
-                "sos"
-            );
+            for (AppUser recipient : recipients) {
+                notificationService.notify(recipient.getEmail(), "BLAST", notifTitle, notifBody, "BlastSchedule", saved.getId());
+            }
         } catch (Exception e) {
             System.err.println("Push notification failed for blast: " + e.getMessage());
         }
@@ -129,19 +136,23 @@ public class BlastController {
 
         // Notify site users of cancellation
         try {
-            List<String> tokens = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+            String notifTitle = "✅ Blast Cancelled — " + blast.getZone();
+            String notifBody = "The scheduled blast in " + blast.getZone() + " has been cancelled. Area is clear.";
+
+            List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .collect(Collectors.toList());
+
+            List<String> tokens = recipients.stream()
                 .map(AppUser::getPushToken)
                 .filter(t -> t != null && !t.isBlank())
                 .collect(Collectors.toList());
+            pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "default");
 
-            pushNotificationService.sendToTokens(
-                tokens,
-                "✅ Blast Cancelled — " + blast.getZone(),
-                "The scheduled blast in " + blast.getZone() + " has been cancelled. Area is clear.",
-                "default"
-            );
+            for (AppUser recipient : recipients) {
+                notificationService.notify(recipient.getEmail(), "BLAST", notifTitle, notifBody, "BlastSchedule", id);
+            }
         } catch (Exception e) {
             System.err.println("Push notification failed for blast cancellation: " + e.getMessage());
         }

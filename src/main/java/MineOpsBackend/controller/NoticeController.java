@@ -9,6 +9,7 @@ import MineOpsBackend.repository.NoticeRepository;
 import MineOpsBackend.repository.NoticeSeenRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -37,19 +38,22 @@ public class NoticeController {
     private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
     private final PushNotificationService pushNotificationService;
+    private final NotificationService notificationService;
 
     public NoticeController(
         NoticeRepository noticeRepository,
         NoticeSeenRepository noticeSeenRepository,
         AppUserRepository appUserRepository,
         AuditLogService auditLogService,
-        PushNotificationService pushNotificationService
+        PushNotificationService pushNotificationService,
+        NotificationService notificationService
     ) {
         this.noticeRepository = noticeRepository;
         this.noticeSeenRepository = noticeSeenRepository;
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.pushNotificationService = pushNotificationService;
+        this.notificationService = notificationService;
     }
 
    @GetMapping("/api/notices")
@@ -104,19 +108,23 @@ public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal Authenticat
 
         // Notify all workers on the same site
         try {
-            List<String> tokens = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+            String notifTitle = "📢 New Notice — " + user.assignedSite();
+            String notifBody = saved.getTitle() + ": " + saved.getMessage();
+
+            List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> "worker".equals(u.getRole()) || "guest".equals(u.getRole()))
+                .collect(Collectors.toList());
+
+            List<String> tokens = recipients.stream()
                 .map(AppUser::getPushToken)
                 .filter(t -> t != null && !t.isBlank())
                 .collect(Collectors.toList());
+            pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "default");
 
-            pushNotificationService.sendToTokens(
-                tokens,
-                "📢 New Notice — " + user.assignedSite(),
-                saved.getTitle() + ": " + saved.getMessage(),
-                "default"
-            );
+            for (AppUser recipient : recipients) {
+                notificationService.notify(recipient.getEmail(), "NOTICE", notifTitle, notifBody, "Notice", saved.getId());
+            }
         } catch (Exception e) {
             System.err.println("Push notification failed for notice: " + e.getMessage());
         }
