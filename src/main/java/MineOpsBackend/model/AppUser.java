@@ -30,6 +30,8 @@ public class AppUser {
 
     private String assignedSite;
 
+    private String homeSite;
+
     private LocalDateTime createdAt;
 
     private LocalDateTime sessionExpiresAt;
@@ -76,6 +78,7 @@ public class AppUser {
         this.passwordHash = passwordHash;
         this.role = role;
         this.assignedSite = assignedSite;
+        this.homeSite = assignedSite;
         this.createdAt = LocalDateTime.now();
         if ("guest".equals(role)) {
             this.sessionExpiresAt = LocalDateTime.now().plusHours(24);
@@ -98,6 +101,9 @@ public class AppUser {
 
     public String getAssignedSite() { return assignedSite; }
     public void setAssignedSite(String assignedSite) { this.assignedSite = assignedSite; }
+
+    public String getHomeSite() { return homeSite; }
+    public void setHomeSite(String homeSite) { this.homeSite = homeSite; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
