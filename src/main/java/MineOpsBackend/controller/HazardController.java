@@ -92,6 +92,12 @@ public class HazardController {
         report.setLongitude(request.longitude());
         report.setPhotoData(request.photoData());
 
+        if (request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+            var existing = hazardReportRepository.findByClientRequestId(request.clientRequestId());
+            if (existing.isPresent()) return existing.get();
+            report.setClientRequestId(request.clientRequestId());
+        }
+
         HazardReport saved = hazardReportRepository.save(report);
         auditLogService.record(
             "HAZARD_SUBMITTED",

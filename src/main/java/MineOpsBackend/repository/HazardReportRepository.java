@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface HazardReportRepository extends JpaRepository<HazardReport, Long> {
     List<HazardReport> findAllByOrderByCreatedAtDesc();
@@ -25,5 +26,7 @@ public interface HazardReportRepository extends JpaRepository<HazardReport, Long
 
     @Query("SELECT h FROM HazardReport h WHERE h.site = :site AND (LOWER(h.location) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(h.hazardType) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(h.description) LIKE LOWER(CONCAT('%',:q,'%'))) ORDER BY h.createdAt DESC")
     List<HazardReport> searchBySite(@Param("site") String site, @Param("q") String q, Pageable pageable);
+
+    Optional<HazardReport> findByClientRequestId(String clientRequestId);
 }
 

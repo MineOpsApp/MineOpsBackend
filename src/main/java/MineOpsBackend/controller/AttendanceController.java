@@ -35,6 +35,11 @@ public class AttendanceController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @RequestBody(required = false) ClockInRequest request
     ) {
+        if (request != null && request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+            var existing = attendanceRepository.findByClientRequestId(request.clientRequestId());
+            if (existing.isPresent()) return existing.get();
+        }
+
         // Check if already clocked in
         attendanceRepository.findTopByWorkerEmailIgnoreCaseAndStatusOrderByClockInAtDesc(user.email(), "ON_SITE")
             .ifPresent(existing -> {
@@ -47,6 +52,9 @@ public class AttendanceController {
             user.assignedSite(), zone
         );
         if (request != null) record.setNotes(request.notes());
+        if (request != null && request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+            record.setClientRequestId(request.clientRequestId());
+        }
 
         AttendanceRecord saved = attendanceRepository.save(record);
         auditLogService.record("CLOCK_IN", user.role(), user.fullName(), user.email(),

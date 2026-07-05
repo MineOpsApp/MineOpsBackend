@@ -12,5 +12,6 @@ public record CreateHazardRequest(
     String severity,
     Double latitude,
     Double longitude,
-    String photoData
+    String photoData,
+    String clientRequestId
 ) {}

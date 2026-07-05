@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+
+
 public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Long> {
     List<AttendanceRecord> findBySiteAndStatusOrderByClockInAtDesc(String site, String status);
     Optional<AttendanceRecord> findTopByWorkerEmailIgnoreCaseAndStatusOrderByClockInAtDesc(String workerEmail, String status);
@@ -16,4 +18,6 @@ public interface AttendanceRepository extends JpaRepository<AttendanceRecord, Lo
     long countBySiteIgnoreCaseAndStatus(String site, String status);
 
     List<AttendanceRecord> findBySiteIgnoreCaseAndClockInAtBetween(String site, LocalDateTime from, LocalDateTime to);
+
+    Optional<AttendanceRecord> findByClientRequestId(String clientRequestId);
 }

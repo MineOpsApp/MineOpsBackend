@@ -29,6 +29,7 @@ public class SosAlert {
     private String actorEmail;
 
     private LocalDateTime createdAt;
+    private String clientRequestId;
 
     public SosAlert() {
     }
@@ -102,4 +103,7 @@ public class SosAlert {
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
     }
+
+    public String getClientRequestId() { return clientRequestId; }
+    public void setClientRequestId(String clientRequestId) { this.clientRequestId = clientRequestId; }
 }

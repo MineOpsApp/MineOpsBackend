@@ -41,6 +41,8 @@ public class HazardReport {
     private LocalDateTime createdAt;
     private LocalDateTime reviewedAt;
     private LocalDateTime closedAt;
+    @Column(name = "client_request_id")
+    private String clientRequestId;
 
     public HazardReport() {
     }
@@ -134,4 +136,7 @@ public class HazardReport {
 
     public LocalDateTime getClosedAt() { return closedAt; }
     public void setClosedAt(LocalDateTime closedAt) { this.closedAt = closedAt; }
+
+    public String getClientRequestId() { return clientRequestId; }
+    public void setClientRequestId(String clientRequestId) { this.clientRequestId = clientRequestId; }
 }

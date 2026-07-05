@@ -17,5 +17,6 @@ public record SubmitShiftLogRequest(
     @NotBlank(message = "Equipment code is required") String equipmentCode,
     @NotBlank(message = "Equipment name is required") String equipmentName,
     String notes,
-    String shiftDate
+    String shiftDate,
+    String clientRequestId
 ) {}

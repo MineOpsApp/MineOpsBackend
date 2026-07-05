@@ -55,7 +55,15 @@ public class SosController {
             ? request.message()
             : "Emergency assistance requested";
 
+        if (request != null && request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+            var existing = sosAlertRepository.findByClientRequestId(request.clientRequestId());
+            if (existing.isPresent()) return existing.get();
+        }
+
         SosAlert alert = new SosAlert(user.role(), site, message, user.fullName(), user.email());
+        if (request != null && request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+            alert.setClientRequestId(request.clientRequestId());
+        }
         SosAlert saved = sosAlertRepository.save(alert);
 
         auditLogService.record(

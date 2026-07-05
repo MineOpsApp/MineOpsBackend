@@ -25,6 +25,7 @@ public class AttendanceRecord {
     private LocalDateTime clockInAt;
     private LocalDateTime clockOutAt;
     private String notes;
+    private String clientRequestId;
 
     public AttendanceRecord() {}
 
@@ -57,4 +58,6 @@ public class AttendanceRecord {
     public void setClockOutAt(LocalDateTime v) { this.clockOutAt = v; }
     public String getNotes() { return notes; }
     public void setNotes(String v) { this.notes = v; }
+    public String getClientRequestId() { return clientRequestId; }
+    public void setClientRequestId(String v) { this.clientRequestId = v; }
 }

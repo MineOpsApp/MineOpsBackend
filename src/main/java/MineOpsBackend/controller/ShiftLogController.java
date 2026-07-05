@@ -72,6 +72,11 @@ public class ShiftLogController {
                 + limit.stripTrailingZeros().toPlainString() + " " + request.unit() + ")");
         }
 
+        if (request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+            var existing = shiftLogRepository.findByClientRequestId(request.clientRequestId());
+            if (existing.isPresent()) return existing.get();
+        }
+
         ShiftLog log = new ShiftLog(
     user.email(),
     user.fullName(),
@@ -86,6 +91,9 @@ public class ShiftLogController {
     request.notes()
 );
 log.setShiftDate(request.shiftDate());
+if (request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+    log.setClientRequestId(request.clientRequestId());
+}
 ShiftLog saved = shiftLogRepository.save(log);
 
         auditLogService.record(
