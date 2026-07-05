@@ -9,8 +9,10 @@ import MineOpsBackend.repository.IncidentReportRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.PushNotificationService;
+import MineOpsBackend.util.CsvExportUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -138,4 +140,20 @@ auditLogService.record("INCIDENT_STATUS_UPDATED", user.role(), user.fullName(), 
     "IncidentReport", id, request.status());
 
 return saved;
-    }}
+    }
+
+    @GetMapping("/api/incidents/export/csv")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public ResponseEntity<String> exportCsv(@AuthenticationPrincipal AuthenticatedUser user) {
+        List<IncidentReport> rows = incidentReportRepository.findBySiteOrderByReportedAtDesc(user.assignedSite());
+        StringBuilder csv = new StringBuilder();
+        csv.append(CsvExportUtil.row("category", "severity", "zone", "description", "status",
+                "firstAidGiven", "hospitalRequired", "reportedAt"));
+        for (IncidentReport r : rows) {
+            csv.append(CsvExportUtil.row(
+                    r.getCategory(), r.getSeverity(), r.getZone(), r.getDescription(),
+                    r.getStatus(), r.getFirstAidGiven(), r.getHospitalRequired(), r.getReportedAt()));
+        }
+        return CsvExportUtil.response("incident-reports.csv", csv.toString());
+    }
+}

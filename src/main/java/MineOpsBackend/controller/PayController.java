@@ -11,8 +11,10 @@ import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.MomoDisbursementService;
 import MineOpsBackend.service.PayCalculationService;
+import MineOpsBackend.util.CsvExportUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -185,5 +187,26 @@ public class PayController {
         m.put("cycle", cycle);
         m.put("records", payRecordRepo.findByPayCycleId(cycle.getId()));
         return m;
+    }
+
+    @GetMapping("/api/pay/{id}/export/csv")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public ResponseEntity<String> exportCsv(
+            @AuthenticationPrincipal AuthenticatedUser user,
+            @PathVariable Long id
+    ) {
+        PayCycle cycle = findAndCheckSite(id, user.assignedSite());
+        List<WorkerPayRecord> records = payRecordRepo.findByPayCycleId(id);
+        StringBuilder csv = new StringBuilder();
+        csv.append(CsvExportUtil.row("workerName", "workerEmail", "hoursWorked",
+                "grossShare", "insuranceDeduction", "netPay", "momoNumber", "momoNetwork"));
+        for (WorkerPayRecord r : records) {
+            csv.append(CsvExportUtil.row(
+                    r.getWorkerName(), r.getWorkerEmail(), r.getHoursWorked(),
+                    r.getGrossShare(), r.getInsuranceDeduction(), r.getNetPay(),
+                    r.getMomoNumber(), r.getMomoNetwork()));
+        }
+        String filename = "pay-cycle-" + cycle.getId() + ".csv";
+        return CsvExportUtil.response(filename, csv.toString());
     }
 }

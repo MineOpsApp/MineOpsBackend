@@ -4,7 +4,9 @@ import MineOpsBackend.model.MarketplaceTransaction;
 import MineOpsBackend.repository.MarketplaceTransactionRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.util.CsvExportUtil;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -71,5 +73,21 @@ public class MarketplaceTransactionController {
         auditLogService.record("TRANSACTION_STATUS_UPDATED", user.role(), user.fullName(), user.email(),
             "MARKETPLACE_TRANSACTION", id, "status=" + newStatus);
         return saved;
+    }
+
+    @GetMapping("/api/marketplace/transactions/export/csv")
+    @PreAuthorize("hasAuthority('ROLE_SUPERVISOR')")
+    public ResponseEntity<String> exportCsv(@AuthenticationPrincipal AuthenticatedUser user) {
+        List<MarketplaceTransaction> rows =
+                transactionRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(user.assignedSite());
+        StringBuilder csv = new StringBuilder();
+        csv.append(CsvExportUtil.row("buyer", "mineralType", "quantity", "agreedPrice",
+                "batchStatus", "createdAt"));
+        for (MarketplaceTransaction t : rows) {
+            csv.append(CsvExportUtil.row(
+                    t.getBuyerName(), t.getMineralType(), t.getQuantity(),
+                    t.getAgreedPrice(), t.getBatchStatus(), t.getCreatedAt()));
+        }
+        return CsvExportUtil.response("marketplace-transactions.csv", csv.toString());
     }
 }

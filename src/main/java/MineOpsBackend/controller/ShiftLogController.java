@@ -6,8 +6,10 @@ import MineOpsBackend.repository.ShiftLogRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.MineralInventoryService;
+import MineOpsBackend.util.CsvExportUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -199,5 +201,19 @@ return saved;
                 + " — " + log.getWorkerName()
         );
         return saved;
+    }
+
+    @GetMapping("/api/shift-logs/export/csv")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public ResponseEntity<String> exportCsv(@AuthenticationPrincipal AuthenticatedUser user) {
+        List<ShiftLog> rows = shiftLogRepository.findBySiteOrderBySubmittedAtDesc(user.assignedSite());
+        StringBuilder csv = new StringBuilder();
+        csv.append(CsvExportUtil.row("worker", "mineralType", "volume", "unit", "shiftDate", "status"));
+        for (ShiftLog s : rows) {
+            csv.append(CsvExportUtil.row(
+                    s.getWorkerName(), s.getMineralType(), s.getVolumeExtracted(),
+                    s.getUnit(), s.getShiftDate(), s.getStatus()));
+        }
+        return CsvExportUtil.response("shift-logs.csv", csv.toString());
     }
 }

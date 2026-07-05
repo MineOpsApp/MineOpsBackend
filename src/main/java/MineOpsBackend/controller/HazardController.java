@@ -10,10 +10,12 @@ import MineOpsBackend.repository.HazardReportRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.PushNotificationService;
+import MineOpsBackend.util.CsvExportUtil;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -189,5 +191,21 @@ public class HazardController {
         );
 
         return saved;
+    }
+
+    @GetMapping("/api/hazards/export/csv")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public ResponseEntity<String> exportCsv(@AuthenticationPrincipal AuthenticatedUser user) {
+        List<HazardReport> rows = hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite());
+        StringBuilder csv = new StringBuilder();
+        csv.append(CsvExportUtil.row("type", "location", "severity", "status", "reportedBy",
+                "createdAt", "reviewedAt", "closedAt", "actionTaken"));
+        for (HazardReport h : rows) {
+            csv.append(CsvExportUtil.row(
+                    h.getHazardType(), h.getLocation(), h.getSeverity(), h.getStatus(),
+                    h.getReportedByName(), h.getCreatedAt(), h.getReviewedAt(),
+                    h.getClosedAt(), h.getActionTaken()));
+        }
+        return CsvExportUtil.response("hazard-reports.csv", csv.toString());
     }
 }
