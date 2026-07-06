@@ -62,6 +62,7 @@ public class AppUser {
 
     private String businessName;
     private String goldbodLicenseNumber;
+    private String governmentAgency;
     private String buyerVerificationStatus;
     @Column(columnDefinition = "TEXT")
     private String verificationDocument;
@@ -161,6 +162,9 @@ public void setBusinessName(String v) { this.businessName = v; }
 
 public String getGoldbodLicenseNumber() { return goldbodLicenseNumber; }
 public void setGoldbodLicenseNumber(String v) { this.goldbodLicenseNumber = v; }
+
+public String getGovernmentAgency() { return governmentAgency; }
+public void setGovernmentAgency(String v) { this.governmentAgency = v; }
 
 public String getBuyerVerificationStatus() { return buyerVerificationStatus; }
 public void setBuyerVerificationStatus(String v) { this.buyerVerificationStatus = v; }
