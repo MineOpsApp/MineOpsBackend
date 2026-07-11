@@ -119,6 +119,11 @@ public class ProfileController {
         m.put("momoNumber", u.getMomoNumber());
         m.put("momoNetwork", u.getMomoNetwork());
         m.put("insuranceStatus", u.getInsuranceStatus() != null ? u.getInsuranceStatus() : "NOT_INSURED");
+        if ("buyer".equals(u.getRole())) {
+            m.put("businessName", u.getBusinessName());
+            m.put("goldbodLicenseNumber", u.getGoldbodLicenseNumber());
+            m.put("buyerVerificationStatus", u.getBuyerVerificationStatus());
+        }
         return m;
     }
 }
