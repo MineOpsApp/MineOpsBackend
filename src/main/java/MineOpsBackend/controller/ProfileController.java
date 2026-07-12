@@ -80,6 +80,16 @@ public class ProfileController {
                     "momoNetwork must be MTN, TELECEL, or AIRTELTIGO.");
             appUser.setMomoNetwork(net == null || net.isBlank() ? null : net.toUpperCase());
         }
+        if ("buyer".equals(appUser.getRole())) {
+            if (body.containsKey("businessName")) {
+                String v = body.get("businessName");
+                appUser.setBusinessName(v == null || v.isBlank() ? null : v.trim());
+            }
+            if (body.containsKey("goldbodLicenseNumber")) {
+                String v = body.get("goldbodLicenseNumber");
+                appUser.setGoldbodLicenseNumber(v == null || v.isBlank() ? null : v.trim());
+            }
+        }
         userRepo.save(appUser);
         return buildProfile(appUser);
     }
