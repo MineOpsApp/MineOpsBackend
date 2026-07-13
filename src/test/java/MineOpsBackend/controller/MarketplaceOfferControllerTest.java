@@ -10,6 +10,7 @@ import MineOpsBackend.repository.MarketplaceOfferRepository;
 import MineOpsBackend.repository.MarketplaceTransactionRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -38,6 +39,7 @@ class MarketplaceOfferControllerTest {
     @Mock MarketplaceTransactionRepository transactionRepo;
     @Mock AppUserRepository userRepo;
     @Mock AuditLogService auditLogService;
+    @Mock NotificationService notificationService;
 
     @InjectMocks MarketplaceOfferController controller;
 
@@ -54,6 +56,7 @@ class MarketplaceOfferControllerTest {
     private AppUser verifiedBuyer() {
         AppUser u = new AppUser("Ama", "ama@buyer.com", "hash", "buyer", null);
         u.setBuyerVerificationStatus("VERIFIED");
+        u.setGoldbodLicenseNumber("GB-12345");
         return u;
     }
 

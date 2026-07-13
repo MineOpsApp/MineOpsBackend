@@ -9,6 +9,7 @@ import MineOpsBackend.repository.AttendanceRepository;
 import MineOpsBackend.repository.PayCycleRepository;
 import MineOpsBackend.repository.PaySplitConfigRepository;
 import MineOpsBackend.repository.ShiftLogRepository;
+import MineOpsBackend.repository.SiteRepository;
 import MineOpsBackend.repository.WorkerPayRecordRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -37,6 +38,7 @@ class PayCalculationServiceTest {
     @Mock PaySplitConfigRepository configRepo;
     @Mock AttendanceRepository attendanceRepo;
     @Mock AppUserRepository userRepo;
+    @Mock SiteRepository siteRepo;
 
     @InjectMocks PayCalculationService service;
 
