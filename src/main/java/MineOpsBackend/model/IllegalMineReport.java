@@ -31,6 +31,13 @@ public class IllegalMineReport {
     @Column(length = 1000)
     private String reviewNotes;
 
+    @Column(columnDefinition = "TEXT")
+    private String photoData;
+
+    private Double latitude;
+
+    private Double longitude;
+
     private LocalDateTime createdAt;
 
     public IllegalMineReport() {}
@@ -50,6 +57,12 @@ public class IllegalMineReport {
     public void setReviewedByEmail(String v) { this.reviewedByEmail = v; }
     public String getReviewNotes() { return reviewNotes; }
     public void setReviewNotes(String v) { this.reviewNotes = v; }
+    public String getPhotoData() { return photoData; }
+    public void setPhotoData(String v) { this.photoData = v; }
+    public Double getLatitude() { return latitude; }
+    public void setLatitude(Double v) { this.latitude = v; }
+    public Double getLongitude() { return longitude; }
+    public void setLongitude(Double v) { this.longitude = v; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
 }
