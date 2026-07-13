@@ -28,6 +28,9 @@ public class IllegalMineReportController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @Valid @RequestBody CreateIllegalMineReportRequest request
     ) {
+        if (request.locationDescription() == null || request.locationDescription().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Location description is required");
+        }
         if (request.photoData() != null && request.photoData().length() > 2_000_000) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Photo is too large. Use a smaller image.");
         }

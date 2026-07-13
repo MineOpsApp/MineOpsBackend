@@ -1,5 +1,6 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.dto.CreateIllegalMineReportRequest;
 import MineOpsBackend.model.IllegalMineReport;
 import MineOpsBackend.repository.IllegalMineReportRepository;
 import MineOpsBackend.security.AuthenticatedUser;
@@ -12,9 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -39,7 +37,7 @@ class IllegalMineReportControllerTest {
     void submitReport_permitsWorkerSupervisorSafetyOfficerBuyer_excludesGuestAndGovernment()
             throws NoSuchMethodException {
         PreAuthorize ann = IllegalMineReportController.class
-            .getMethod("submitReport", AuthenticatedUser.class, Map.class)
+            .getMethod("submitReport", AuthenticatedUser.class, CreateIllegalMineReportRequest.class)
             .getAnnotation(PreAuthorize.class);
         assertThat(ann).isNotNull();
         String expr = ann.value();
@@ -55,8 +53,8 @@ class IllegalMineReportControllerTest {
 
     @Test
     void submitReport_throws400_whenLocationDescriptionNull() {
-        Map<String, String> body = new HashMap<>();
-        body.put("locationDescription", null);
+        CreateIllegalMineReportRequest body = new CreateIllegalMineReportRequest(
+            null, null, null, null, null, null);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
             () -> controller.submitReport(worker(), body));
@@ -66,7 +64,8 @@ class IllegalMineReportControllerTest {
 
     @Test
     void submitReport_throws400_whenLocationDescriptionBlank() {
-        Map<String, String> body = Map.of("locationDescription", "   ");
+        CreateIllegalMineReportRequest body = new CreateIllegalMineReportRequest(
+            "   ", null, null, null, null, null);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
             () -> controller.submitReport(worker(), body));
@@ -76,8 +75,9 @@ class IllegalMineReportControllerTest {
 
     @Test
     void submitReport_throws400_whenLocationDescriptionAbsent() {
-        // key not present at all — body.get() returns null
-        Map<String, String> body = Map.of("details", "Some details");
+        // locationDescription null (not provided), details present
+        CreateIllegalMineReportRequest body = new CreateIllegalMineReportRequest(
+            null, "Some details", null, null, null, null);
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
             () -> controller.submitReport(supervisor(), body));
@@ -92,7 +92,8 @@ class IllegalMineReportControllerTest {
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         IllegalMineReport result = controller.submitReport(
-            worker(), Map.of("locationDescription", "Near Nsuta Junction"));
+            worker(),
+            new CreateIllegalMineReportRequest("Near Nsuta Junction", null, null, null, null, null));
 
         assertThat(result.getReporterEmail()).isEqualTo("kofi@mine.com");
     }
@@ -102,7 +103,8 @@ class IllegalMineReportControllerTest {
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         IllegalMineReport result = controller.submitReport(
-            supervisor(), Map.of("locationDescription", "Along the Ankobra River"));
+            supervisor(),
+            new CreateIllegalMineReportRequest("Along the Ankobra River", null, null, null, null, null));
 
         assertThat(result.getReporterRole()).isEqualTo("supervisor");
     }
@@ -112,7 +114,8 @@ class IllegalMineReportControllerTest {
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         IllegalMineReport result = controller.submitReport(
-            buyer(), Map.of("locationDescription", "Tarkwa area"));
+            buyer(),
+            new CreateIllegalMineReportRequest("Tarkwa area", null, null, null, null, null));
 
         assertThat(result.getReporterRole()).isEqualTo("buyer");
         assertThat(result.getReporterEmail()).isEqualTo("ama@buyer.com");
@@ -125,7 +128,8 @@ class IllegalMineReportControllerTest {
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         IllegalMineReport result = controller.submitReport(
-            safetyOfficer(), Map.of("locationDescription", "Tarkwa area"));
+            safetyOfficer(),
+            new CreateIllegalMineReportRequest("Tarkwa area", null, null, null, null, null));
 
         assertThat(result.getStatus()).isEqualTo("SUBMITTED");
     }
@@ -135,7 +139,8 @@ class IllegalMineReportControllerTest {
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         ArgumentCaptor<IllegalMineReport> cap = ArgumentCaptor.forClass(IllegalMineReport.class);
-        controller.submitReport(worker(), Map.of("locationDescription", "  Near Nsuta Junction  "));
+        controller.submitReport(worker(),
+            new CreateIllegalMineReportRequest("  Near Nsuta Junction  ", null, null, null, null, null));
 
         verify(repo).save(cap.capture());
         assertThat(cap.getValue().getLocationDescription()).isEqualTo("Near Nsuta Junction");
@@ -145,9 +150,9 @@ class IllegalMineReportControllerTest {
     void submitReport_setsDetailsWhenProvided() {
         when(repo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        IllegalMineReport result = controller.submitReport(worker(), Map.of(
-            "locationDescription", "Tarkwa area",
-            "details", "Heavy equipment seen at night"));
+        IllegalMineReport result = controller.submitReport(worker(),
+            new CreateIllegalMineReportRequest(
+                "Tarkwa area", "Heavy equipment seen at night", null, null, null, null));
 
         assertThat(result.getDetails()).isEqualTo("Heavy equipment seen at night");
     }
