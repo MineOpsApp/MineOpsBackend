@@ -150,7 +150,7 @@ public Map<String, Object> resetPassword(
     if ("supervisor".equals(user.getRole()) || "safetyOfficer".equals(user.getRole())) {
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot reset passwords for supervisors or safety officers");
     }
-    if (user.getAssignedSite() == null || !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
+    if (user.getAssignedSite() != null && !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User belongs to a different site");
 
     String tempPassword = "Reset" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase() + "!";
@@ -180,7 +180,7 @@ public Map<String, Object> suspendUser(
     if ("supervisor".equals(user.getRole()) || "safetyOfficer".equals(user.getRole())) {
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot suspend supervisors or safety officers");
     }
-    if (user.getAssignedSite() == null || !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
+    if (user.getAssignedSite() != null && !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User belongs to a different site");
 
     boolean suspend = !"false".equals(body.get("suspend")) ;
