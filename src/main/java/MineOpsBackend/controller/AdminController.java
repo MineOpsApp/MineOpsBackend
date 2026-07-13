@@ -235,6 +235,8 @@ public Map<String, Object> approveWorker(
     if (email == null || email.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email required");
     AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found"));
+    if (user.getAssignedSite() != null && !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker belongs to a different site");
     user.setPending(false);
     appUserRepository.save(user);
     auditLogService.record("WORKER_APPROVED", admin.role(), admin.fullName(), admin.email(),
@@ -252,6 +254,8 @@ public Map<String, Object> rejectWorker(
     if (email == null || email.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email required");
     AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found"));
+    if (user.getAssignedSite() != null && !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker belongs to a different site");
     if (!Boolean.TRUE.equals(user.getPending())) {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not pending approval");
     }

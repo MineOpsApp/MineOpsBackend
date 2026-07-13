@@ -128,11 +128,21 @@ return saved;
         List<ShiftLog> logs = shiftLogRepository.findBySiteOrderBySubmittedAtDesc(user.assignedSite());
 
         if (dateFrom != null && !dateFrom.isBlank()) {
-            java.time.LocalDate from = java.time.LocalDate.parse(dateFrom);
+            java.time.LocalDate from;
+            try {
+                from = java.time.LocalDate.parse(dateFrom);
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dateFrom must be ISO date format (yyyy-MM-dd)");
+            }
             logs = logs.stream().filter(l -> !l.getSubmittedAt().toLocalDate().isBefore(from)).collect(java.util.stream.Collectors.toList());
         }
         if (dateTo != null && !dateTo.isBlank()) {
-            java.time.LocalDate to = java.time.LocalDate.parse(dateTo);
+            java.time.LocalDate to;
+            try {
+                to = java.time.LocalDate.parse(dateTo);
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dateTo must be ISO date format (yyyy-MM-dd)");
+            }
             logs = logs.stream().filter(l -> !l.getSubmittedAt().toLocalDate().isAfter(to)).collect(java.util.stream.Collectors.toList());
         }
         if (mineralType != null && !mineralType.isBlank()) {

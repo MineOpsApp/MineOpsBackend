@@ -34,7 +34,7 @@ public class EquipmentController {
     }
 
     @GetMapping("/api/equipment")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public List<Equipment> getEquipment(@AuthenticationPrincipal AuthenticatedUser user) {
         return equipmentRepository.findBySiteOrderByCodeAsc(user.assignedSite());
     }

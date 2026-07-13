@@ -69,6 +69,9 @@ public class SiteAccessController {
                            @RequestBody SwitchRequest req) {
         AppUser user = appUserRepository.findByEmailIgnoreCase(principal.email()).orElseThrow();
         String homeSite = user.getHomeSite() != null ? user.getHomeSite() : user.getAssignedSite();
+        if (req.site() == null || req.site().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "site is required");
+        }
         String targetSite = req.site();
 
         boolean isHome = targetSite.equals(homeSite);
@@ -101,6 +104,10 @@ public class SiteAccessController {
 
         if (!"supervisor".equals(target.getRole())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target user is not a supervisor");
+        }
+        if (!req.site().equalsIgnoreCase(principal.assignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "You can only grant access to your current site: " + principal.assignedSite());
         }
 
         // idempotent — return existing if already granted

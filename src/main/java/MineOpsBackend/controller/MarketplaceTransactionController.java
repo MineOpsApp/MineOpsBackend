@@ -59,7 +59,7 @@ public class MarketplaceTransactionController {
     ) {
         MarketplaceTransaction tx = transactionRepo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
-        if (!tx.getSite().equalsIgnoreCase(user.assignedSite())) {
+        if (!user.assignedSite().equalsIgnoreCase(tx.getSite())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Transaction belongs to a different site");
         }
         String newStatus = body.get("batchStatus");

@@ -29,7 +29,7 @@ public class SiteMapController {
     }
 
     @GetMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public SiteMap getSiteMap(@AuthenticationPrincipal AuthenticatedUser user) {
         return siteMapRepository.findBySiteIgnoreCase(user.assignedSite())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No site map uploaded yet"));

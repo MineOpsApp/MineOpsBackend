@@ -134,7 +134,7 @@ public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal Authenticat
     }
 
     @PostMapping("/api/notices/{id}/seen")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER','ROLE_GUEST')")
     public Map<String, Object> markSeen(
         @AuthenticationPrincipal AuthenticatedUser user,
         @PathVariable Long id

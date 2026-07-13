@@ -49,7 +49,7 @@ public class VisitorInductionController {
     ) {
         VisitorInduction induction = new VisitorInduction(
             request.visitorType(),
-            request.site()
+            user.assignedSite()
         );
 
         VisitorInduction saved = visitorInductionRepository.save(induction);

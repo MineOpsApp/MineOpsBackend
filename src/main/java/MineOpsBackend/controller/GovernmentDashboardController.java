@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/government")
@@ -78,7 +79,13 @@ public class GovernmentDashboardController {
         IllegalMineReport report = illegalMineReportRepo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Report not found"));
         String status = body.get("status");
-        if (status != null && !status.isBlank()) report.setStatus(status);
+        if (status != null && !status.isBlank()) {
+            if (!Set.of("UNDER_REVIEW", "ACTIONED", "DISMISSED").contains(status)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Invalid status. Must be UNDER_REVIEW, ACTIONED, or DISMISSED");
+            }
+            report.setStatus(status);
+        }
         String notes = body.get("reviewNotes");
         if (notes != null) report.setReviewNotes(notes);
         report.setReviewedByEmail(user.email());
