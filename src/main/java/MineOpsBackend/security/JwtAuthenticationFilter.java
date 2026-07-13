@@ -49,6 +49,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (!user.getId().equals(claims.userId()) || !user.getRole().equals(claims.role())) {
                 throw new IllegalArgumentException("Token user does not match stored user");
             }
+            if (Boolean.FALSE.equals(user.getActive()) || user.getDeletedAt() != null) {
+                throw new IllegalArgumentException("Account is suspended or deleted");
+            }
 
            AuthenticatedUser principal = new AuthenticatedUser(
     user.getId(),

@@ -84,6 +84,7 @@ public class SosController {
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(site)
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .collect(Collectors.toList());
 
             List<String> tokens = recipients.stream()

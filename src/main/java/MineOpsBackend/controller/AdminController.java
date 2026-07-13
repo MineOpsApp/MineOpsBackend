@@ -7,6 +7,7 @@ import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.RefreshTokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -28,12 +29,15 @@ public class AdminController {
     private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
+    private final RefreshTokenService refreshTokenService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public AdminController(AppUserRepository appUserRepository, AuditLogService auditLogService, NotificationService notificationService) {
+    public AdminController(AppUserRepository appUserRepository, AuditLogService auditLogService,
+                           NotificationService notificationService, RefreshTokenService refreshTokenService) {
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.notificationService = notificationService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @PostMapping("/api/admin/guests/renew")
@@ -158,6 +162,7 @@ public Map<String, Object> resetPassword(
     user.setFailedLoginAttempts(0);
     user.setLockedUntil(null);
     appUserRepository.save(user);
+    refreshTokenService.revokeAll(user.getId());
 
     auditLogService.record("PASSWORD_RESET", admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
@@ -176,6 +181,8 @@ public Map<String, Object> suspendUser(
     @RequestBody Map<String, String> body
 ) {
     String email = body.get("email");
+    if (email == null || email.isBlank())
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
     AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found with that email"));
 
@@ -185,9 +192,10 @@ public Map<String, Object> suspendUser(
     if (user.getAssignedSite() != null && !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User belongs to a different site");
 
-    boolean suspend = !"false".equals(body.get("suspend")) ;
+    boolean suspend = !"false".equals(body.get("suspend"));
     user.setActive(!suspend);
     appUserRepository.save(user);
+    if (suspend) refreshTokenService.revokeAll(user.getId());
 
     auditLogService.record(suspend ? "ACCOUNT_SUSPENDED" : "ACCOUNT_REINSTATED",
         admin.role(), admin.fullName(), admin.email(),
