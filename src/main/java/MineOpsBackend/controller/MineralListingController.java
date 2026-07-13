@@ -5,7 +5,9 @@ import MineOpsBackend.model.MineralListing;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.MineralListingRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.dto.CreateListingRequest;
 import MineOpsBackend.service.AuditLogService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,11 +19,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 public class MineralListingController {
@@ -44,35 +44,27 @@ public class MineralListingController {
     @PreAuthorize("hasAuthority('ROLE_SUPERVISOR')")
     public MineralListing createListing(
         @AuthenticationPrincipal AuthenticatedUser user,
-        @RequestBody Map<String, Object> body
+        @Valid @RequestBody CreateListingRequest request
     ) {
-        if (body.get("mineralType") == null || body.get("quantity") == null || body.get("askingPrice") == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mineralType, quantity, and askingPrice are required");
-        }
-        BigDecimal quantity, askingPrice;
-        try {
-            quantity = new BigDecimal(body.get("quantity").toString());
-            askingPrice = new BigDecimal(body.get("askingPrice").toString());
-        } catch (NumberFormatException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "quantity and askingPrice must be valid numbers");
+        if (request.photoData() != null && request.photoData().length() > 2_000_000) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Photo is too large. Use a smaller image.");
         }
         MineralListing listing = new MineralListing();
         listing.setSite(user.assignedSite());
-        listing.setMineralType((String) body.get("mineralType"));
-        listing.setQuantity(quantity);
-        listing.setUnit((String) body.get("unit"));
-        listing.setGrade((String) body.get("grade"));
-        listing.setAskingPrice(askingPrice);
-        listing.setLocation((String) body.get("location"));
-        if (body.get("availableFrom") != null) {
-            try { listing.setAvailableFrom(LocalDate.parse(body.get("availableFrom").toString())); }
+        listing.setMineralType(request.mineralType());
+        listing.setQuantity(request.quantity());
+        listing.setUnit(request.unit());
+        listing.setGrade(request.grade());
+        listing.setAskingPrice(request.askingPrice());
+        listing.setLocation(request.location());
+        if (request.availableFrom() != null) {
+            try { listing.setAvailableFrom(LocalDate.parse(request.availableFrom())); }
             catch (Exception e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "availableFrom must be ISO date (yyyy-MM-dd)"); }
         }
-        if (body.get("minOrderQuantity") != null) {
-            try { listing.setMinOrderQuantity(new BigDecimal(body.get("minOrderQuantity").toString())); }
-            catch (NumberFormatException e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minOrderQuantity must be a valid number"); }
+        if (request.minOrderQuantity() != null) {
+            listing.setMinOrderQuantity(request.minOrderQuantity());
         }
-        listing.setPhotoData((String) body.get("photoData"));
+        listing.setPhotoData(request.photoData());
         listing.setStatus("ACTIVE");
         listing.setCreatedBy(user.email());
         listing.setCreatedAt(LocalDateTime.now());

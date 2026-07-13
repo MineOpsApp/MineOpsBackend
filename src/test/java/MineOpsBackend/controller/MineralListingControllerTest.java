@@ -1,5 +1,6 @@
 package MineOpsBackend.controller;
 
+import MineOpsBackend.dto.CreateListingRequest;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.MineralListing;
 import MineOpsBackend.repository.AppUserRepository;
@@ -17,7 +18,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,16 +75,12 @@ class MineralListingControllerTest {
     void createListing_persistsWithSupervisorSiteAndAudits() {
         when(listingRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        Map<String, Object> body = Map.of(
-            "mineralType", "Gold",
-            "quantity", "500",
-            "unit", "oz",
-            "grade", "22 carat",
-            "askingPrice", "250000",
-            "location", "Block 3"
+        CreateListingRequest request = new CreateListingRequest(
+            "Gold", BigDecimal.valueOf(500), "oz", "22 carat",
+            BigDecimal.valueOf(250000), "Block 3", null, null, null
         );
 
-        MineralListing result = controller.createListing(supervisor(), body);
+        MineralListing result = controller.createListing(supervisor(), request);
 
         ArgumentCaptor<MineralListing> cap = ArgumentCaptor.forClass(MineralListing.class);
         verify(listingRepo).save(cap.capture());
