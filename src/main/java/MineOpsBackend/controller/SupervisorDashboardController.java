@@ -1,6 +1,7 @@
 package MineOpsBackend.controller;
 
 import MineOpsBackend.model.AppUser;
+import MineOpsBackend.model.SupervisorSiteAccess;
 import MineOpsBackend.repository.*;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.SafetyIntelligenceService;
@@ -14,6 +15,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,7 @@ public class SupervisorDashboardController {
     private final MarketplaceOfferRepository offerRepo;
     private final MarketplaceTransactionRepository txRepo;
     private final TransactionDisputeRepository disputeRepo;
+    private final SupervisorSiteAccessRepository siteAccessRepo;
 
     public SupervisorDashboardController(
         AppUserRepository userRepo,
@@ -53,7 +56,8 @@ public class SupervisorDashboardController {
         MineralListingRepository listingRepo,
         MarketplaceOfferRepository offerRepo,
         MarketplaceTransactionRepository txRepo,
-        TransactionDisputeRepository disputeRepo
+        TransactionDisputeRepository disputeRepo,
+        SupervisorSiteAccessRepository siteAccessRepo
     ) {
         this.userRepo = userRepo;
         this.hazardRepo = hazardRepo;
@@ -70,6 +74,7 @@ public class SupervisorDashboardController {
         this.offerRepo = offerRepo;
         this.txRepo = txRepo;
         this.disputeRepo = disputeRepo;
+        this.siteAccessRepo = siteAccessRepo;
     }
 
     @GetMapping("/api/supervisor/dashboard")
@@ -78,7 +83,34 @@ public class SupervisorDashboardController {
         AppUser supervisor = userRepo.findById(auth.id())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         String site = supervisor.getAssignedSite() != null ? supervisor.getAssignedSite() : "";
+        return computeSiteSummary(site);
+    }
 
+    @GetMapping("/api/supervisor/multi-site-dashboard")
+    @PreAuthorize("hasAuthority('ROLE_SUPERVISOR')")
+    public List<Map<String, Object>> getMultiSiteDashboard(@AuthenticationPrincipal AuthenticatedUser auth) {
+        AppUser supervisor = userRepo.findById(auth.id())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        String homeSite = supervisor.getHomeSite() != null ? supervisor.getHomeSite() : supervisor.getAssignedSite();
+
+        List<String> sites = new ArrayList<>();
+        if (homeSite != null) sites.add(homeSite);
+        for (SupervisorSiteAccess grant : siteAccessRepo.findBySupervisorEmail(supervisor.getEmail())) {
+            if (!grant.getSite().equals(homeSite)) sites.add(grant.getSite());
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (String site : sites) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("site", site);
+            entry.put("isHome", site.equals(homeSite));
+            entry.put("summary", computeSiteSummary(site));
+            result.add(entry);
+        }
+        return result;
+    }
+
+    private Map<String, Object> computeSiteSummary(String site) {
         long hazardCount = hazardRepo.findBySiteOrderByCreatedAtDesc(site).size();
         long noticeCount = noticeRepo.countBySiteIgnoreCase(site);
         long workersOnSite = attendanceRepo.countBySiteIgnoreCaseAndStatus(site, "ON_SITE");
