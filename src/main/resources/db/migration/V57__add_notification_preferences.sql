@@ -1,0 +1,2 @@
+ALTER TABLE app_users ADD COLUMN notify_hazard BOOLEAN DEFAULT TRUE;
+ALTER TABLE app_users ADD COLUMN notify_notice BOOLEAN DEFAULT TRUE;

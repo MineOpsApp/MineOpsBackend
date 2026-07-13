@@ -123,6 +123,7 @@ public class HazardController {
                 String notifBody = user.fullName() + " reported: " + request.hazardType() + " at " + request.location();
 
                 List<String> tokens = recipients.stream()
+                    .filter(u -> !Boolean.FALSE.equals(u.getNotifyHazard()))
                     .map(AppUser::getPushToken)
                     .filter(t -> t != null && !t.isBlank())
                     .collect(Collectors.toList());

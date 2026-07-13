@@ -94,6 +94,34 @@ public class ProfileController {
         return buildProfile(appUser);
     }
 
+    @GetMapping("/api/profile/notification-preferences")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, Object> getNotificationPreferences(@AuthenticationPrincipal AuthenticatedUser user) {
+        AppUser appUser = userRepo.findById(user.id())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("notifyHazard", !Boolean.FALSE.equals(appUser.getNotifyHazard()));
+        m.put("notifyNotice", !Boolean.FALSE.equals(appUser.getNotifyNotice()));
+        return m;
+    }
+
+    @org.springframework.web.bind.annotation.PutMapping("/api/profile/notification-preferences")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, Object> updateNotificationPreferences(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @RequestBody Map<String, Boolean> body
+    ) {
+        AppUser appUser = userRepo.findById(user.id())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (body.containsKey("notifyHazard")) appUser.setNotifyHazard(body.get("notifyHazard"));
+        if (body.containsKey("notifyNotice")) appUser.setNotifyNotice(body.get("notifyNotice"));
+        userRepo.save(appUser);
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("notifyHazard", !Boolean.FALSE.equals(appUser.getNotifyHazard()));
+        m.put("notifyNotice", !Boolean.FALSE.equals(appUser.getNotifyNotice()));
+        return m;
+    }
+
     @GetMapping("/api/profile/{email}")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public Map<String, Object> getWorkerProfile(

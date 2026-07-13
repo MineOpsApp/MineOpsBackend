@@ -117,6 +117,7 @@ public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal Authenticat
                 .collect(Collectors.toList());
 
             List<String> tokens = recipients.stream()
+                .filter(u -> !Boolean.FALSE.equals(u.getNotifyNotice()))
                 .map(AppUser::getPushToken)
                 .filter(t -> t != null && !t.isBlank())
                 .collect(Collectors.toList());

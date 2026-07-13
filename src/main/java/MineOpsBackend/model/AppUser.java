@@ -44,6 +44,9 @@ public class AppUser {
 
     private Boolean pending = false;
 
+    private Boolean notifyHazard = true;
+    private Boolean notifyNotice = true;
+
     private Integer failedLoginAttempts = 0;
     private LocalDateTime lockedUntil;
     private LocalDateTime termsAcceptedAt;
@@ -133,6 +136,11 @@ public void setActive(Boolean v) { this.active = v; }
 
 public Boolean getPending() { return pending; }
 public void setPending(Boolean pending) { this.pending = pending; }
+
+public Boolean getNotifyHazard() { return notifyHazard; }
+public void setNotifyHazard(Boolean v) { this.notifyHazard = v; }
+public Boolean getNotifyNotice() { return notifyNotice; }
+public void setNotifyNotice(Boolean v) { this.notifyNotice = v; }
 
 public String getProfilePhoto() { return profilePhoto; }
 public void setProfilePhoto(String profilePhoto) { this.profilePhoto = profilePhoto; }
