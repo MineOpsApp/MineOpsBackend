@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,8 +84,9 @@ public class SupervisorDashboardController {
         long workersOnSite = attendanceRepo.countBySiteIgnoreCaseAndStatus(site, "ON_SITE");
         long pendingShiftLogs = shiftLogRepo.countBySiteIgnoreCaseAndStatus(site, "PENDING");
         long unreadMessages = messageRepo.countBySiteIgnoreCaseAndReadAtIsNull(site);
-        long certExpired = certRepo.countBySiteIgnoreCaseAndStatus(site, "EXPIRED");
-        long certExpiringSoon = certRepo.countBySiteIgnoreCaseAndStatus(site, "EXPIRING_SOON");
+        LocalDate today = LocalDate.now();
+        long certExpired = certRepo.countExpiredBySite(site, today);
+        long certExpiringSoon = certRepo.countExpiringSoonBySite(site, today, today.plusDays(30));
 
         int safetyScore = safetyScoreService.computeScore(site);
         int safetyRecommendationCount = safetyIntelligenceService.getRecommendations(site).size();

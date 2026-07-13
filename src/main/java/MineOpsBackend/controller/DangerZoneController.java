@@ -10,6 +10,7 @@ import MineOpsBackend.repository.DangerZoneRepository;
 import MineOpsBackend.repository.HazardReportRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -33,24 +34,23 @@ import java.util.stream.Collectors;
 @RestController
 public class DangerZoneController {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
     private final DangerZoneRepository dangerZoneRepository;
     private final HazardReportRepository hazardReportRepository;
     private final BlastScheduleRepository blastScheduleRepository;
     private final AuditLogService auditLogService;
-    private final ObjectMapper objectMapper;
 
     public DangerZoneController(
         DangerZoneRepository dangerZoneRepository,
         HazardReportRepository hazardReportRepository,
         BlastScheduleRepository blastScheduleRepository,
-        AuditLogService auditLogService,
-        ObjectMapper objectMapper
+        AuditLogService auditLogService
     ) {
         this.dangerZoneRepository = dangerZoneRepository;
         this.hazardReportRepository = hazardReportRepository;
         this.blastScheduleRepository = blastScheduleRepository;
         this.auditLogService = auditLogService;
-        this.objectMapper = objectMapper;
     }
 
     @GetMapping("/api/danger-zones")
@@ -94,8 +94,8 @@ public class DangerZoneController {
     ) {
         DangerZone zone = findAndCheckSite(id, user);
         try {
-            zone.setPolygonPoints(objectMapper.writeValueAsString(request.points()));
-        } catch (Exception e) {
+            zone.setPolygonPoints(MAPPER.writeValueAsString(request.points()));
+        } catch (JsonProcessingException e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to serialize polygon points");
         }
         DangerZone saved = dangerZoneRepository.save(zone);
