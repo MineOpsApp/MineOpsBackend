@@ -16,4 +16,6 @@ public interface SosAlertRepository extends JpaRepository<SosAlert, Long> {
     Page<SosAlert> findBySiteInOrderByCreatedAtDesc(List<String> sites, Pageable pageable);
 
     Optional<SosAlert> findByClientRequestId(String clientRequestId);
+
+    List<SosAlert> findByActorEmailIgnoreCaseOrderByCreatedAtDesc(String actorEmail);
 }

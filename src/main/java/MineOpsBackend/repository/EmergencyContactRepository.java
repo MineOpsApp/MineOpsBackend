@@ -11,4 +11,6 @@ public interface EmergencyContactRepository extends JpaRepository<EmergencyConta
     List<EmergencyContact> findByWorkerIdOrderByContactTypeAsc(Long workerId);
 
     Optional<EmergencyContact> findByWorkerIdAndContactType(Long workerId, String contactType);
+
+    void deleteByWorkerId(Long workerId);
 }

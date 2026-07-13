@@ -50,6 +50,7 @@ public class AppUser {
     private Integer failedLoginAttempts = 0;
     private LocalDateTime lockedUntil;
     private LocalDateTime termsAcceptedAt;
+    private LocalDateTime deletedAt;
 
     @Column(columnDefinition = "TEXT")
     private String profilePhoto;
@@ -192,4 +193,7 @@ public void setLockedUntil(LocalDateTime v) { this.lockedUntil = v; }
 
 public LocalDateTime getTermsAcceptedAt() { return termsAcceptedAt; }
 public void setTermsAcceptedAt(LocalDateTime v) { this.termsAcceptedAt = v; }
+
+public LocalDateTime getDeletedAt() { return deletedAt; }
+public void setDeletedAt(LocalDateTime v) { this.deletedAt = v; }
 }
