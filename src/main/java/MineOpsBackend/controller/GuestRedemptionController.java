@@ -78,7 +78,7 @@ public class GuestRedemptionController {
             "GuestAccessCode", code.getId(),
             code.getSite() + " sub=" + code.getGuestSubRole());
 
-        String rawRefreshToken = refreshTokenService.generate(guest.getId());
+        String rawRefreshToken = refreshTokenService.generate(guest.getId(), null, null);
         return ResponseEntity.ok(buildAuthResponse(guest, rawRefreshToken));
     }
 
