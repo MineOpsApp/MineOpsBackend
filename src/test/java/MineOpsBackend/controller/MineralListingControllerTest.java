@@ -168,6 +168,33 @@ class MineralListingControllerTest {
     }
 
     @Test
+    void withdrawListing_throws409_whenListingNotActive() {
+        MineralListing l = activeListing(SITE);
+        l.setStatus("SOLD");
+        when(listingRepo.findById(1L)).thenReturn(Optional.of(l));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+            () -> controller.withdrawListing(supervisor(), 1L));
+
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        verify(listingRepo, never()).save(any());
+    }
+
+    @Test
+    void createListing_throws400_whenMinOrderQuantityExceedsQuantity() {
+        CreateListingRequest request = new CreateListingRequest(
+            "Gold", BigDecimal.valueOf(10), "oz", null,
+            BigDecimal.valueOf(250000), null, null, BigDecimal.valueOf(1000), null
+        );
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+            () -> controller.createListing(supervisor(), request));
+
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(listingRepo, never()).save(any());
+    }
+
+    @Test
     void withdrawListing_setsWithdrawnAndAudits() {
         MineralListing l = activeListing(SITE);
         when(listingRepo.findById(1L)).thenReturn(Optional.of(l));

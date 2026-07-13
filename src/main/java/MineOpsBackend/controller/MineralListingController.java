@@ -46,8 +46,17 @@ public class MineralListingController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @Valid @RequestBody CreateListingRequest request
     ) {
+        if (user.assignedSite() == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "No site assigned to your account. Contact an administrator.");
+        }
         if (request.photoData() != null && request.photoData().length() > 2_000_000) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Photo is too large. Use a smaller image.");
+        }
+        if (request.minOrderQuantity() != null
+                && request.minOrderQuantity().compareTo(request.quantity()) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "minOrderQuantity cannot exceed quantity");
         }
         MineralListing listing = new MineralListing();
         listing.setSite(user.assignedSite());
@@ -85,6 +94,10 @@ public class MineralListingController {
             }
             return listingRepo.findByStatusOrderByCreatedAtDesc("ACTIVE");
         }
+        if (user.assignedSite() == null) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "No site assigned to your account. Contact an administrator.");
+        }
         return listingRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(user.assignedSite());
     }
 
@@ -96,8 +109,12 @@ public class MineralListingController {
     ) {
         MineralListing listing = listingRepo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found"));
-        if (!listing.getSite().equalsIgnoreCase(user.assignedSite())) {
+        if (!user.assignedSite().equalsIgnoreCase(listing.getSite())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Listing belongs to a different site");
+        }
+        if (!"ACTIVE".equals(listing.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Only ACTIVE listings can be withdrawn");
         }
         listing.setStatus("WITHDRAWN");
         MineralListing saved = listingRepo.save(listing);
