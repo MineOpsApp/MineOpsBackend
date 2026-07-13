@@ -58,6 +58,9 @@ public class AuthController {
         if (appUserRepository.existsByEmailIgnoreCase(email)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
         }
+        if (!Boolean.TRUE.equals(request.acceptedTerms())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You must accept the Terms of Service and Privacy Policy to register");
+        }
 
         if ("buyer".equals(request.role())) {
             AppUser buyer = new AppUser(
@@ -67,6 +70,7 @@ public class AuthController {
             );
             buyer.setBuyerVerificationStatus("PENDING_VERIFICATION");
             buyer.setPending(true);
+            buyer.setTermsAcceptedAt(LocalDateTime.now());
             if (request.businessName() != null) buyer.setBusinessName(request.businessName().trim());
             if (request.verificationDocument() != null) buyer.setVerificationDocument(request.verificationDocument());
             if (request.goldbodLicenseNumber() != null && !request.goldbodLicenseNumber().isBlank())
@@ -79,11 +83,13 @@ public class AuthController {
             ? "Obuasi Mine"
             : request.assignedSite();
 
-        AppUser user = appUserRepository.save(new AppUser(
+        AppUser user = new AppUser(
             request.fullName().trim(), email,
             passwordEncoder.encode(request.password()),
             request.role(), assignedSite
-        ));
+        );
+        user.setTermsAcceptedAt(LocalDateTime.now());
+        user = appUserRepository.save(user);
 
         if ("guest".equals(request.role()) && request.guestSubRole() != null) {
             user.setGuestSubRole(request.guestSubRole());

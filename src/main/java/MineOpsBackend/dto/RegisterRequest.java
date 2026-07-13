@@ -15,5 +15,6 @@ public record RegisterRequest(
     String verificationDocument,
     String goldbodLicenseNumber,
     String deviceName,
-    String platform
+    String platform,
+    Boolean acceptedTerms
 ) {}
