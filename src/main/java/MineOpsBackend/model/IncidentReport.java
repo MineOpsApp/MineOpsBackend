@@ -39,6 +39,9 @@ public class IncidentReport {
     @Column(columnDefinition = "TEXT")
     private String investigationNotes;
 
+    @Column(name = "client_request_id")
+    private String clientRequestId;
+
     private LocalDateTime incidentAt;
     private LocalDateTime reportedAt;
     private LocalDateTime updatedAt;
@@ -116,4 +119,6 @@ public class IncidentReport {
 
     public String getInvestigationNotes() { return investigationNotes; }
     public void setInvestigationNotes(String v) { this.investigationNotes = v; }
+    public String getClientRequestId() { return clientRequestId; }
+    public void setClientRequestId(String v) { this.clientRequestId = v; }
 }

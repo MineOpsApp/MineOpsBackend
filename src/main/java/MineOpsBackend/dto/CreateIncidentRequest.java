@@ -15,5 +15,6 @@ public record CreateIncidentRequest(
     Double latitude,
     Double longitude,
     String photoData,
-    String incidentAt
+    String incidentAt,
+    String clientRequestId
 ) {}

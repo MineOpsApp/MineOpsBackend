@@ -75,6 +75,12 @@ public class IncidentController {
             request.photoData(), incidentAt
         );
 
+        if (request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+            var existing = incidentReportRepository.findByClientRequestId(request.clientRequestId());
+            if (existing.isPresent()) return existing.get();
+            report.setClientRequestId(request.clientRequestId());
+        }
+
         IncidentReport saved = incidentReportRepository.save(report);
 
         auditLogService.record("INCIDENT_REPORTED", user.role(), user.fullName(), user.email(),

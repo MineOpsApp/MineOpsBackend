@@ -40,6 +40,11 @@ public class IllegalMineReportController {
         report.setLatitude(request.latitude());
         report.setLongitude(request.longitude());
         report.setCreatedAt(LocalDateTime.now());
+        if (request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
+            var existing = repo.findByClientRequestId(request.clientRequestId());
+            if (existing.isPresent()) return existing.get();
+            report.setClientRequestId(request.clientRequestId());
+        }
         return repo.save(report);
     }
 }

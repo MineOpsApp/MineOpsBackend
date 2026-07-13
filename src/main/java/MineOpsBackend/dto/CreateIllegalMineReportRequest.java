@@ -7,5 +7,6 @@ public record CreateIllegalMineReportRequest(
     String details,
     String photoData,
     Double latitude,
-    Double longitude
+    Double longitude,
+    String clientRequestId
 ) {}

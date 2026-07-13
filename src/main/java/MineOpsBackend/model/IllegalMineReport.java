@@ -38,6 +38,9 @@ public class IllegalMineReport {
 
     private Double longitude;
 
+    @Column(name = "client_request_id")
+    private String clientRequestId;
+
     private LocalDateTime createdAt;
 
     public IllegalMineReport() {}
@@ -65,4 +68,6 @@ public class IllegalMineReport {
     public void setLongitude(Double v) { this.longitude = v; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
+    public String getClientRequestId() { return clientRequestId; }
+    public void setClientRequestId(String v) { this.clientRequestId = v; }
 }

@@ -15,4 +15,6 @@ public interface IncidentReportRepository extends JpaRepository<IncidentReport, 
 
     @Query("SELECT i FROM IncidentReport i WHERE i.site = :site AND (LOWER(i.description) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(i.category) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(i.zone) LIKE LOWER(CONCAT('%',:q,'%'))) ORDER BY i.reportedAt DESC")
     List<IncidentReport> searchBySite(@Param("site") String site, @Param("q") String q, Pageable pageable);
+
+    java.util.Optional<IncidentReport> findByClientRequestId(String clientRequestId);
 }
