@@ -44,6 +44,9 @@ public class AppUser {
 
     private Boolean pending = false;
 
+    private Integer failedLoginAttempts = 0;
+    private LocalDateTime lockedUntil;
+
     @Column(columnDefinition = "TEXT")
     private String profilePhoto;
 
@@ -171,4 +174,10 @@ public void setBuyerVerificationStatus(String v) { this.buyerVerificationStatus 
 
 public String getVerificationDocument() { return verificationDocument; }
 public void setVerificationDocument(String v) { this.verificationDocument = v; }
+
+public Integer getFailedLoginAttempts() { return failedLoginAttempts; }
+public void setFailedLoginAttempts(Integer v) { this.failedLoginAttempts = v; }
+
+public LocalDateTime getLockedUntil() { return lockedUntil; }
+public void setLockedUntil(LocalDateTime v) { this.lockedUntil = v; }
 }

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -99,9 +100,31 @@ public class AuthController {
         String email = request.email().trim().toLowerCase();
         AppUser user = appUserRepository.findByEmailIgnoreCase(email).orElse(null);
 
+        if (user != null && user.getLockedUntil() != null && LocalDateTime.now().isBefore(user.getLockedUntil())) {
+            return ResponseEntity.status(200).body(Map.of("error", "LOCKED"));
+        }
+
         if (user == null || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            if (user != null) {
+                int attempts = (user.getFailedLoginAttempts() == null ? 0 : user.getFailedLoginAttempts()) + 1;
+                if (attempts >= 5) {
+                    user.setFailedLoginAttempts(0);
+                    user.setLockedUntil(LocalDateTime.now().plusMinutes(15));
+                    appUserRepository.save(user);
+                    return ResponseEntity.status(200).body(Map.of("error", "LOCKED"));
+                }
+                user.setFailedLoginAttempts(attempts);
+                appUserRepository.save(user);
+            }
             return ResponseEntity.status(401).body(Map.of("error", "INVALID_CREDENTIALS"));
         }
+
+        if ((user.getFailedLoginAttempts() != null && user.getFailedLoginAttempts() > 0) || user.getLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setLockedUntil(null);
+            appUserRepository.save(user);
+        }
+
         if (Boolean.TRUE.equals(user.getPending())) {
             return ResponseEntity.status(200).body(Map.of("error", "PENDING_APPROVAL"));
         }

@@ -155,6 +155,8 @@ public Map<String, Object> resetPassword(
 
     String tempPassword = "Reset" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase() + "!";
     user.setPasswordHash(passwordEncoder.encode(tempPassword));
+    user.setFailedLoginAttempts(0);
+    user.setLockedUntil(null);
     appUserRepository.save(user);
 
     auditLogService.record("PASSWORD_RESET", admin.role(), admin.fullName(), admin.email(),
