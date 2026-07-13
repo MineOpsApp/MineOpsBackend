@@ -14,6 +14,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,8 +23,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 public class AuthController {
@@ -92,7 +96,7 @@ public class AuthController {
             return ResponseEntity.ok(Map.of("pending", true));
         }
 
-        return ResponseEntity.ok(authResponse(user));
+        return ResponseEntity.ok(authResponse(user, request.deviceName(), request.platform()));
     }
 
     @PostMapping("/api/auth/login")
@@ -135,7 +139,7 @@ public class AuthController {
             return ResponseEntity.status(200).body(Map.of("error", "EXPIRED"));
         }
 
-        return ResponseEntity.ok(authResponse(user));
+        return ResponseEntity.ok(authResponse(user, request.deviceName(), request.platform()));
     }
 
     @PostMapping("/api/auth/refresh")
@@ -192,8 +196,31 @@ public class AuthController {
         return Map.of("success", true);
     }
 
-    private Map<String, Object> authResponse(AppUser user) {
-        String rawRefreshToken = refreshTokenService.generate(user.getId());
+    @GetMapping("/api/auth/sessions")
+    @PreAuthorize("isAuthenticated()")
+    public List<Map<String, Object>> listSessions(@AuthenticationPrincipal AuthenticatedUser user) {
+        return refreshTokenService.listActiveSessions(user.id()).stream()
+            .map(t -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("id", t.getId());
+                m.put("deviceName", t.getDeviceName() != null ? t.getDeviceName() : "Unknown device");
+                m.put("platform", t.getPlatform());
+                m.put("createdAt", t.getCreatedAt().toString());
+                m.put("lastUsedAt", t.getLastUsedAt() != null ? t.getLastUsedAt().toString() : t.getCreatedAt().toString());
+                return m;
+            })
+            .collect(Collectors.toList());
+    }
+
+    @PostMapping("/api/auth/sessions/{id}/revoke")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, Object> revokeSession(@AuthenticationPrincipal AuthenticatedUser user, @PathVariable Long id) {
+        refreshTokenService.revokeOne(user.id(), id);
+        return Map.of("success", true);
+    }
+
+    private Map<String, Object> authResponse(AppUser user, String deviceName, String platform) {
+        String rawRefreshToken = refreshTokenService.generate(user.getId(), deviceName, platform);
         return authResponseWithToken(user, rawRefreshToken);
     }
 

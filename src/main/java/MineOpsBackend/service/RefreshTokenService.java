@@ -12,6 +12,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Base64;
+import java.util.List;
 
 @Service
 public class RefreshTokenService {
@@ -23,13 +24,16 @@ public class RefreshTokenService {
         this.repo = repo;
     }
 
-    public String generate(Long userId) {
-        // Clean up old expired tokens for this user opportunistically
+    public String generate(Long userId, String deviceName, String platform) {
         repo.deleteExpiredBefore(LocalDateTime.now());
 
         String raw = randomBase64();
         String hash = sha256(raw);
-        repo.save(new RefreshToken(userId, hash, LocalDateTime.now().plusDays(EXPIRY_DAYS)));
+        RefreshToken token = new RefreshToken(userId, hash, LocalDateTime.now().plusDays(EXPIRY_DAYS));
+        token.setDeviceName(deviceName);
+        token.setPlatform(platform);
+        token.setLastUsedAt(LocalDateTime.now());
+        repo.save(token);
         return raw;
     }
 
@@ -44,17 +48,33 @@ public class RefreshTokenService {
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Refresh token has expired");
         }
+        token.setLastUsedAt(LocalDateTime.now());
+        repo.save(token);
         return token;
     }
 
     public String rotate(RefreshToken old) {
         old.setRevoked(true);
         repo.save(old);
-        return generate(old.getUserId());
+        return generate(old.getUserId(), old.getDeviceName(), old.getPlatform());
     }
 
     public void revokeAll(Long userId) {
         repo.revokeAllByUserId(userId);
+    }
+
+    public List<RefreshToken> listActiveSessions(Long userId) {
+        return repo.findByUserIdAndRevokedFalseAndExpiresAtAfterOrderByCreatedAtDesc(userId, LocalDateTime.now());
+    }
+
+    public void revokeOne(Long userId, Long tokenId) {
+        RefreshToken token = repo.findById(tokenId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
+        if (!token.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot revoke another user's session");
+        }
+        token.setRevoked(true);
+        repo.save(token);
     }
 
     private String randomBase64() {

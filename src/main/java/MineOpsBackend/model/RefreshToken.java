@@ -26,6 +26,15 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "device_name", length = 120)
+    private String deviceName;
+
+    @Column(name = "platform", length = 40)
+    private String platform;
+
+    @Column(name = "last_used_at")
+    private LocalDateTime lastUsedAt;
+
     public RefreshToken() {}
 
     public RefreshToken(Long userId, String tokenHash, LocalDateTime expiresAt) {
@@ -43,4 +52,10 @@ public class RefreshToken {
     public Boolean getRevoked() { return revoked; }
     public void setRevoked(Boolean revoked) { this.revoked = revoked; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public String getDeviceName() { return deviceName; }
+    public void setDeviceName(String v) { this.deviceName = v; }
+    public String getPlatform() { return platform; }
+    public void setPlatform(String v) { this.platform = v; }
+    public LocalDateTime getLastUsedAt() { return lastUsedAt; }
+    public void setLastUsedAt(LocalDateTime v) { this.lastUsedAt = v; }
 }
