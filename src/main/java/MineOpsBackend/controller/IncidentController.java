@@ -53,7 +53,7 @@ public class IncidentController {
     }
 
     @PostMapping("/api/incidents")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public IncidentReport createIncident(
         @AuthenticationPrincipal AuthenticatedUser user,
         @Valid @RequestBody CreateIncidentRequest request
@@ -97,6 +97,7 @@ public class IncidentController {
                 List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                     .stream()
                     .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
+                    .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                     .collect(Collectors.toList());
 
                 List<String> tokens = recipients.stream()

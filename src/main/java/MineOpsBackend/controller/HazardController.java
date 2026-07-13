@@ -83,7 +83,7 @@ public class HazardController {
             user.fullName(),
             user.email(),
             request.hazardType(),
-            request.site(),
+            user.assignedSite(),
             request.location(),
             request.description(),
             request.severity()
@@ -113,13 +113,14 @@ public class HazardController {
         try {
             String severity = request.severity() != null ? request.severity() : "Medium";
             if ("High".equals(severity) || "Critical".equals(severity)) {
-                List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(request.site())
+                List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(saved.getSite())
                     .stream()
                     .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
+                    .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                     .collect(Collectors.toList());
 
                 String emoji = "Critical".equals(severity) ? "🔴" : "🟠";
-                String notifTitle = emoji + " " + severity + " Hazard — " + request.site();
+                String notifTitle = emoji + " " + severity + " Hazard — " + saved.getSite();
                 String notifBody = user.fullName() + " reported: " + request.hazardType() + " at " + request.location();
 
                 List<String> tokens = recipients.stream()

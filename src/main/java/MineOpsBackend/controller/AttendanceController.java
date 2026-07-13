@@ -30,7 +30,7 @@ public class AttendanceController {
     }
 
     @PostMapping("/api/attendance/clock-in")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER','ROLE_GUEST')")
     public AttendanceRecord clockIn(
         @AuthenticationPrincipal AuthenticatedUser user,
         @RequestBody(required = false) ClockInRequest request
@@ -64,7 +64,7 @@ public class AttendanceController {
     }
 
     @PostMapping("/api/attendance/clock-out")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER','ROLE_GUEST')")
     public AttendanceRecord clockOut(@AuthenticationPrincipal AuthenticatedUser user) {
         AttendanceRecord record = attendanceRepository
             .findTopByWorkerEmailIgnoreCaseAndStatusOrderByClockInAtDesc(user.email(), "ON_SITE")

@@ -59,35 +59,16 @@ public class WorkerController {
     @GetMapping("/api/workers/me")
     @PreAuthorize("hasAuthority('ROLE_WORKER')")
     public Map<String, Object> getWorkerProfile(@AuthenticationPrincipal AuthenticatedUser user) {
-        ensureEquipment(user.email());
-
         Map<String, Object> profile = new LinkedHashMap<>();
         profile.put("fullName", user.fullName());
         profile.put("email", user.email());
         profile.put("role", user.role());
         profile.put("assignedSite", user.assignedSite());
-        profile.put("assignedZone", "Zone A");
         profile.put("assignedEquipment", workerEquipmentRepository.findByWorkerEmailIgnoreCase(user.email()));
         profile.put("submittedHazards", hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
         profile.put("equipmentFaults", equipmentFaultRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
         profile.put("maintenanceRequests", maintenanceRequestRepository.findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(user.email()));
         profile.put("shiftLogs", equipmentShiftLogRepository.findByWorkerEmailIgnoreCaseOrderByLoggedAtDesc(user.email()));
-        profile.put("inspectionHistory", List.of(
-            Map.of("title", "Daily pre-start inspection", "status", "Submitted"),
-            Map.of("title", "PPE check", "status", "Completed")
-        ));
-        profile.put("trainingRecords", List.of(
-            Map.of("title", "Site induction", "status", "Complete"),
-            Map.of("title", "Hazard reporting", "status", "Complete")
-        ));
-        profile.put("shiftHistory", List.of(
-            Map.of("title", "Morning shift", "date", "Today"),
-            Map.of("title", "Day shift", "date", "Yesterday")
-        ));
-        profile.put("incidentInvolvementHistory", List.of(
-            Map.of("title", "No active incident involvement", "status", "Clear")
-        ));
-
         return profile;
     }
 
@@ -213,17 +194,5 @@ public class WorkerController {
         return maintenanceRequest;
     }
 
-    private void ensureEquipment(String email) {
-        if (!workerEquipmentRepository.findByWorkerEmailIgnoreCase(email).isEmpty()) {
-            return;
-        }
 
-        workerEquipmentRepository.save(new WorkerEquipment(
-            email,
-            "Excavator",
-            "EX-01",
-            "Operational",
-            "Complete walkaround check before start. Report leaks, brake issues, or warning lights."
-        ));
-    }
 }

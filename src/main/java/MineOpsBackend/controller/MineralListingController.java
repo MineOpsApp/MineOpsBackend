@@ -46,19 +46,31 @@ public class MineralListingController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @RequestBody Map<String, Object> body
     ) {
+        if (body.get("mineralType") == null || body.get("quantity") == null || body.get("askingPrice") == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mineralType, quantity, and askingPrice are required");
+        }
+        BigDecimal quantity, askingPrice;
+        try {
+            quantity = new BigDecimal(body.get("quantity").toString());
+            askingPrice = new BigDecimal(body.get("askingPrice").toString());
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "quantity and askingPrice must be valid numbers");
+        }
         MineralListing listing = new MineralListing();
         listing.setSite(user.assignedSite());
         listing.setMineralType((String) body.get("mineralType"));
-        listing.setQuantity(new BigDecimal(body.get("quantity").toString()));
+        listing.setQuantity(quantity);
         listing.setUnit((String) body.get("unit"));
         listing.setGrade((String) body.get("grade"));
-        listing.setAskingPrice(new BigDecimal(body.get("askingPrice").toString()));
+        listing.setAskingPrice(askingPrice);
         listing.setLocation((String) body.get("location"));
         if (body.get("availableFrom") != null) {
-            listing.setAvailableFrom(LocalDate.parse(body.get("availableFrom").toString()));
+            try { listing.setAvailableFrom(LocalDate.parse(body.get("availableFrom").toString())); }
+            catch (Exception e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "availableFrom must be ISO date (yyyy-MM-dd)"); }
         }
         if (body.get("minOrderQuantity") != null) {
-            listing.setMinOrderQuantity(new BigDecimal(body.get("minOrderQuantity").toString()));
+            try { listing.setMinOrderQuantity(new BigDecimal(body.get("minOrderQuantity").toString())); }
+            catch (NumberFormatException e) { throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "minOrderQuantity must be a valid number"); }
         }
         listing.setPhotoData((String) body.get("photoData"));
         listing.setStatus("ACTIVE");

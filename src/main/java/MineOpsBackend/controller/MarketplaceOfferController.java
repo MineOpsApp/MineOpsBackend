@@ -76,12 +76,22 @@ public class MarketplaceOfferController {
                     "A GoldBod license number is required to offer on gold listings");
             }
         }
+        if (body.get("offerPrice") == null || body.get("offerQuantity") == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "offerPrice and offerQuantity are required");
+        }
+        BigDecimal offerPrice, offerQuantity;
+        try {
+            offerPrice = new BigDecimal(body.get("offerPrice").toString());
+            offerQuantity = new BigDecimal(body.get("offerQuantity").toString());
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "offerPrice and offerQuantity must be valid numbers");
+        }
         MarketplaceOffer offer = new MarketplaceOffer();
         offer.setListingId(listingId);
         offer.setBuyerEmail(user.email());
         offer.setBuyerName(user.fullName());
-        offer.setOfferPrice(new BigDecimal(body.get("offerPrice").toString()));
-        offer.setOfferQuantity(new BigDecimal(body.get("offerQuantity").toString()));
+        offer.setOfferPrice(offerPrice);
+        offer.setOfferQuantity(offerQuantity);
         offer.setMessage((String) body.get("message"));
         offer.setStatus("PENDING");
         offer.setCreatedAt(LocalDateTime.now());
@@ -130,13 +140,23 @@ public class MarketplaceOfferController {
         original.setRespondedBy(user.email());
         offerRepo.save(original);
 
+        if (body.get("offerPrice") == null || body.get("offerQuantity") == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "offerPrice and offerQuantity are required");
+        }
+        BigDecimal counterPrice, counterQuantity;
+        try {
+            counterPrice = new BigDecimal(body.get("offerPrice").toString());
+            counterQuantity = new BigDecimal(body.get("offerQuantity").toString());
+        } catch (NumberFormatException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "offerPrice and offerQuantity must be valid numbers");
+        }
         MarketplaceOffer counter = new MarketplaceOffer();
         counter.setListingId(original.getListingId());
         counter.setParentOfferId(id);
         counter.setBuyerEmail(original.getBuyerEmail());
         counter.setBuyerName(original.getBuyerName());
-        counter.setOfferPrice(new BigDecimal(body.get("offerPrice").toString()));
-        counter.setOfferQuantity(new BigDecimal(body.get("offerQuantity").toString()));
+        counter.setOfferPrice(counterPrice);
+        counter.setOfferQuantity(counterQuantity);
         counter.setMessage((String) body.get("message"));
         counter.setStatus("PENDING");
         counter.setCreatedAt(LocalDateTime.now());
