@@ -42,8 +42,18 @@ public class LoneWorkerController {
         repo.findTopByWorkerIdAndActiveOrderByStartedAtDesc(worker.getId(), true)
             .ifPresent(s -> { s.setActive(false); repo.save(s); });
 
-        int intervalMinutes = body.containsKey("intervalMinutes")
-            ? (int) body.get("intervalMinutes") : 60;
+        int intervalMinutes = 60;
+        if (body.containsKey("intervalMinutes")) {
+            Object raw = body.get("intervalMinutes");
+            try {
+                intervalMinutes = ((Number) raw).intValue();
+            } catch (ClassCastException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "intervalMinutes must be a number");
+            }
+            if (intervalMinutes <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "intervalMinutes must be positive");
+            }
+        }
 
         LoneWorkerSession session = new LoneWorkerSession();
         session.setWorkerId(worker.getId());

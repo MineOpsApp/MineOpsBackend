@@ -53,7 +53,12 @@ public class CommunityEventController {
         event.setTitle(title.trim());
         event.setDescription(description != null ? description.trim() : "");
         event.setEventType(eventType != null ? eventType.trim() : "General");
-        event.setEventDate(LocalDateTime.parse(eventDateStr));
+        try {
+            event.setEventDate(LocalDateTime.parse(eventDateStr));
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "eventDate must be ISO date-time format (yyyy-MM-ddTHH:mm:ss)");
+        }
         event.setCreatedByEmail(user.email());
         event.setCreatedByName(user.fullName());
         event.setCreatedAt(LocalDateTime.now());

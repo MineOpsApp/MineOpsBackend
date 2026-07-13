@@ -62,7 +62,7 @@ public class BulkPurchaseRequestController {
     ) {
         BulkPurchaseRequest req = repo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Request not found"));
-        if (!req.getSite().equalsIgnoreCase(user.assignedSite())) {
+        if (!user.assignedSite().equalsIgnoreCase(req.getSite())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This request belongs to a different site");
         }
         req.setStatus("WITHDRAWN");

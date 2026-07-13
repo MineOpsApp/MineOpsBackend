@@ -54,7 +54,7 @@ public class DangerZoneController {
     }
 
     @GetMapping("/api/danger-zones")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public Page<DangerZone> getDangerZones(@AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
         return dangerZoneRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite(), pageable);
     }
@@ -112,7 +112,7 @@ public class DangerZoneController {
     }
 
     @GetMapping("/api/danger-zones/{id}/detail")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public Map<String, Object> getZoneDetail(
         @PathVariable Long id,
         @AuthenticationPrincipal AuthenticatedUser user

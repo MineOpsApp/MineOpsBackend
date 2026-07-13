@@ -101,7 +101,7 @@ public class BlastController {
     }
 
     @GetMapping("/api/blasts")
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public List<BlastSchedule> getBlasts(@AuthenticationPrincipal AuthenticatedUser user) {
         return blastScheduleRepository.findBySiteAndStatusOrderByBlastTimeAsc(user.assignedSite(), "SCHEDULED");
     }
@@ -170,6 +170,10 @@ public class BlastController {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Blast schedule not found"));
         if (!blast.getSite().equalsIgnoreCase(user.assignedSite()))
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Blast belongs to a different site");
+
+        if (!"SCHEDULED".equals(blast.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only scheduled blasts can be executed");
+        }
 
         blast.setStatus("EXECUTED");
         blast.setUpdatedAt(LocalDateTime.now());
