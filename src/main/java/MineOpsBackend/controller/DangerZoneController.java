@@ -2,14 +2,18 @@ package MineOpsBackend.controller;
 
 import MineOpsBackend.dto.CreateDangerZoneRequest;
 import MineOpsBackend.dto.UpdateZonePositionRequest;
+import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.BlastSchedule;
 import MineOpsBackend.model.DangerZone;
 import MineOpsBackend.model.HazardReport;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.BlastScheduleRepository;
 import MineOpsBackend.repository.DangerZoneRepository;
 import MineOpsBackend.repository.HazardReportRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.PushNotificationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -39,18 +43,27 @@ public class DangerZoneController {
     private final DangerZoneRepository dangerZoneRepository;
     private final HazardReportRepository hazardReportRepository;
     private final BlastScheduleRepository blastScheduleRepository;
+    private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
+    private final PushNotificationService pushNotificationService;
+    private final NotificationService notificationService;
 
     public DangerZoneController(
         DangerZoneRepository dangerZoneRepository,
         HazardReportRepository hazardReportRepository,
         BlastScheduleRepository blastScheduleRepository,
-        AuditLogService auditLogService
+        AppUserRepository appUserRepository,
+        AuditLogService auditLogService,
+        PushNotificationService pushNotificationService,
+        NotificationService notificationService
     ) {
         this.dangerZoneRepository = dangerZoneRepository;
         this.hazardReportRepository = hazardReportRepository;
         this.blastScheduleRepository = blastScheduleRepository;
+        this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
+        this.pushNotificationService = pushNotificationService;
+        this.notificationService = notificationService;
     }
 
     @GetMapping("/api/danger-zones")
@@ -81,6 +94,28 @@ public class DangerZoneController {
             saved.getId(),
             saved.getZoneName() + " - " + saved.getRiskLevel()
         );
+
+        try {
+            String notifTitle = "🚧 Danger Zone — " + saved.getZoneName();
+            String notifBody = saved.getRiskLevel() + " risk zone active at " + saved.getSite() + ". Avoid this area.";
+
+            List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+                .stream()
+                .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .collect(Collectors.toList());
+
+            List<String> tokens = recipients.stream()
+                .map(AppUser::getPushToken)
+                .filter(t -> t != null && !t.isBlank())
+                .collect(Collectors.toList());
+            pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "danger-zone");
+
+            for (AppUser recipient : recipients) {
+                notificationService.notify(recipient.getEmail(), "DANGER_ZONE", notifTitle, notifBody, "DangerZone", saved.getId());
+            }
+        } catch (Exception e) {
+            System.err.println("Push notification failed for danger zone: " + e.getMessage());
+        }
 
         return saved;
     }
