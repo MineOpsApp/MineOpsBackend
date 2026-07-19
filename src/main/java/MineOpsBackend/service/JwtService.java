@@ -28,7 +28,7 @@ public class JwtService {
         this.secret = secret.trim();
     }
 
-    public String createToken(AppUser user) {
+    public String createToken(AppUser user, Long sessionId) {
         try {
             Map<String, Object> header = new LinkedHashMap<>();
             header.put("alg", "HS256");
@@ -40,6 +40,7 @@ public class JwtService {
             payload.put("role", user.getRole());
             payload.put("site", user.getAssignedSite());
             payload.put("guestSubRole", user.getGuestSubRole());
+            payload.put("sid", sessionId);
             payload.put("exp", Instant.now().plusSeconds(60 * 60).getEpochSecond()); // 1 hour
 
             String headerPart = encode(objectMapper.writeValueAsBytes(header));
@@ -79,7 +80,8 @@ public class JwtService {
     asString(payload.get("email")),
     asString(payload.get("role")),
     payload.get("site") == null ? null : String.valueOf(payload.get("site")),
-    payload.get("guestSubRole") == null ? null : String.valueOf(payload.get("guestSubRole"))
+    payload.get("guestSubRole") == null ? null : String.valueOf(payload.get("guestSubRole")),
+    asLong(payload.get("sid"))
 );
         } catch (Exception error) {
             throw new IllegalArgumentException("Invalid token", error);
@@ -124,7 +126,7 @@ public class JwtService {
         return String.valueOf(value);
     }
 
-    public record JwtClaims(Long userId, String email, String role, String site , String guestSubRole) {
+    public record JwtClaims(Long userId, String email, String role, String site, String guestSubRole, Long sessionId) {
     }
 }
 

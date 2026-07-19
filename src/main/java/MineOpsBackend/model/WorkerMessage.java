@@ -35,6 +35,15 @@ public class WorkerMessage {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "recipient_email")
+    private String recipientEmail;
+
+    @Column(name = "recipient_name")
+    private String recipientName;
+
+    @Column(name = "initiated_by", nullable = false)
+    private String initiatedBy = "WORKER";
+
     @PrePersist
     void prePersist() {
         createdAt = LocalDateTime.now();
@@ -47,6 +56,18 @@ public class WorkerMessage {
         this.senderName = senderName;
         this.site = site;
         this.content = content;
+        this.initiatedBy = "WORKER";
+    }
+
+    public WorkerMessage(String senderEmail, String senderName, String site, String content,
+                         String recipientEmail, String recipientName) {
+        this.senderEmail = senderEmail;
+        this.senderName = senderName;
+        this.site = site;
+        this.content = content;
+        this.recipientEmail = recipientEmail;
+        this.recipientName = recipientName;
+        this.initiatedBy = "STAFF";
     }
 
     public Long getId() { return id; }
@@ -58,6 +79,9 @@ public class WorkerMessage {
     public LocalDateTime getRepliedAt() { return repliedAt; }
     public LocalDateTime getReadAt() { return readAt; }
     public LocalDateTime getCreatedAt() { return createdAt; }
+    public String getRecipientEmail() { return recipientEmail; }
+    public String getRecipientName() { return recipientName; }
+    public String getInitiatedBy() { return initiatedBy; }
 
     public void setReply(String reply) { this.reply = reply; }
     public void setRepliedAt(LocalDateTime repliedAt) { this.repliedAt = repliedAt; }

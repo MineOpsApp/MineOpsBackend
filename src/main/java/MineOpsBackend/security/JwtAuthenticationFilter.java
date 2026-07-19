@@ -3,6 +3,7 @@ package MineOpsBackend.security;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.service.JwtService;
+import MineOpsBackend.service.RefreshTokenService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,10 +24,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final AppUserRepository appUserRepository;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
-    public JwtAuthenticationFilter(AppUserRepository appUserRepository, JwtService jwtService) {
+    public JwtAuthenticationFilter(AppUserRepository appUserRepository, JwtService jwtService,
+                                   RefreshTokenService refreshTokenService) {
         this.appUserRepository = appUserRepository;
         this.jwtService = jwtService;
+        this.refreshTokenService = refreshTokenService;
     }
 
     @Override
@@ -52,15 +56,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (Boolean.FALSE.equals(user.getActive()) || user.getDeletedAt() != null) {
                 throw new IllegalArgumentException("Account is suspended or deleted");
             }
+            if (!refreshTokenService.isSessionValid(claims.sessionId())) {
+                throw new IllegalArgumentException("Session has been revoked");
+            }
 
-           AuthenticatedUser principal = new AuthenticatedUser(
-    user.getId(),
-    user.getFullName(),
-    user.getEmail(),
-    user.getRole(),
-    user.getAssignedSite(),
-    user.getGuestSubRole()
-);
+            AuthenticatedUser principal = new AuthenticatedUser(
+                user.getId(),
+                user.getFullName(),
+                user.getEmail(),
+                user.getRole(),
+                user.getAssignedSite(),
+                user.getGuestSubRole()
+            );
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 principal,
                 null,

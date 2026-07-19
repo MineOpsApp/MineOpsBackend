@@ -88,7 +88,8 @@ public class WorkerMessageController {
     @GetMapping("/mine")
     @PreAuthorize("hasAuthority('ROLE_WORKER')")
     public List<Map<String, Object>> getMyMessages(@AuthenticationPrincipal AuthenticatedUser auth) {
-        return messageRepo.findBySenderEmailIgnoreCaseOrderByCreatedAtDesc(auth.email())
+        return messageRepo.findBySenderEmailIgnoreCaseOrRecipientEmailIgnoreCaseOrderByCreatedAtDesc(
+                auth.email(), auth.email())
             .stream().map(this::toMap).collect(Collectors.toList());
     }
 
@@ -100,6 +101,112 @@ public class WorkerMessageController {
         if (supervisor.getAssignedSite() == null) return List.of();
         return messageRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(supervisor.getAssignedSite())
             .stream().map(this::toMap).collect(Collectors.toList());
+    }
+
+    @GetMapping("/site-workers")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public List<Map<String, Object>> getSiteWorkersForMessaging(@AuthenticationPrincipal AuthenticatedUser auth) {
+        AppUser staff = userRepo.findById(auth.id())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (staff.getAssignedSite() == null) return List.of();
+        return userRepo.findByRoleAndAssignedSiteIgnoreCase("worker", staff.getAssignedSite())
+            .stream()
+            .filter(w -> !Boolean.TRUE.equals(w.getPending()) && !Boolean.FALSE.equals(w.getActive()))
+            .map(w -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("email", w.getEmail());
+                m.put("fullName", w.getFullName());
+                return m;
+            })
+            .collect(Collectors.toList());
+    }
+
+    @PostMapping("/to-worker")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public Map<String, Object> sendToWorker(
+        @AuthenticationPrincipal AuthenticatedUser auth,
+        @RequestBody Map<String, String> body
+    ) {
+        String workerEmail = body.get("workerEmail");
+        String content = body.get("content");
+        if (workerEmail == null || workerEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipient is required");
+        }
+        if (content == null || content.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message cannot be empty");
+        }
+        if (content.length() > 500) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message must be 500 characters or less");
+        }
+
+        AppUser sender = userRepo.findById(auth.id())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        AppUser worker = userRepo.findByEmailIgnoreCase(workerEmail.trim())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Worker not found"));
+
+        if (!"worker".equals(worker.getRole())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipient must be a worker");
+        }
+        if (sender.getAssignedSite() == null || worker.getAssignedSite() == null ||
+            !sender.getAssignedSite().equalsIgnoreCase(worker.getAssignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker is not at your site");
+        }
+
+        WorkerMessage msg = new WorkerMessage(
+            sender.getEmail(), sender.getFullName(), sender.getAssignedSite(),
+            content.trim(), worker.getEmail(), worker.getFullName()
+        );
+        messageRepo.save(msg);
+
+        String preview = content.length() > 80 ? content.substring(0, 77) + "..." : content;
+        notificationService.notify(worker.getEmail(), "MESSAGE",
+            sender.getFullName() + " sent you a message", preview, "WorkerMessage", msg.getId());
+        String token = worker.getPushToken();
+        if (token != null && !token.isBlank()) {
+            pushService.sendToToken(token, sender.getFullName() + " sent you a message", preview, "default");
+        }
+
+        return toMap(msg);
+    }
+
+    @PostMapping("/{id}/worker-reply")
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public Map<String, Object> workerReply(
+        @AuthenticationPrincipal AuthenticatedUser auth,
+        @PathVariable Long id,
+        @RequestBody Map<String, String> body
+    ) {
+        String reply = body.get("reply");
+        if (reply == null || reply.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reply cannot be empty");
+        }
+        if (reply.length() > 500) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reply must be 500 characters or less");
+        }
+
+        WorkerMessage msg = messageRepo.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found"));
+
+        if (!"STAFF".equals(msg.getInitiatedBy()) || msg.getRecipientEmail() == null ||
+            !msg.getRecipientEmail().equalsIgnoreCase(auth.email())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This message was not sent to you");
+        }
+
+        msg.setReply(reply.trim());
+        msg.setRepliedAt(LocalDateTime.now());
+        messageRepo.save(msg);
+
+        String preview = reply.length() > 80 ? reply.substring(0, 77) + "..." : reply;
+        notificationService.notify(msg.getSenderEmail(), "MESSAGE",
+            msg.getRecipientName() + " replied to your message", preview, "WorkerMessage", id);
+        userRepo.findByEmailIgnoreCase(msg.getSenderEmail()).ifPresent(staff -> {
+            String token = staff.getPushToken();
+            if (token != null && !token.isBlank()) {
+                pushService.sendToToken(token, msg.getRecipientName() + " replied to your message", preview, "default");
+            }
+        });
+
+        return toMap(msg);
     }
 
     @PostMapping("/{id}/reply")
@@ -122,6 +229,10 @@ public class WorkerMessageController {
 
         WorkerMessage msg = messageRepo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found"));
+
+        if ("STAFF".equals(msg.getInitiatedBy())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use the worker-reply endpoint for staff-initiated messages");
+        }
 
         if (supervisor.getAssignedSite() == null ||
             !supervisor.getAssignedSite().equalsIgnoreCase(msg.getSite())) {
@@ -185,6 +296,9 @@ public class WorkerMessageController {
         map.put("repliedAt", m.getRepliedAt());
         map.put("readAt", m.getReadAt());
         map.put("createdAt", m.getCreatedAt());
+        map.put("recipientEmail", m.getRecipientEmail());
+        map.put("recipientName", m.getRecipientName());
+        map.put("initiatedBy", m.getInitiatedBy());
         return map;
     }
 }

@@ -166,8 +166,8 @@ public class AuthController {
                 return ResponseEntity.status(200).body(Map.of("error", "EXPIRED"));
             }
 
-            String newRaw = refreshTokenService.rotate(existing);
-            return ResponseEntity.ok(authResponseWithToken(user, newRaw));
+            RefreshTokenService.IssuedToken issued = refreshTokenService.rotate(existing);
+            return ResponseEntity.ok(authResponseWithToken(user, issued));
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(401).body(Map.of("error", "INVALID_REFRESH_TOKEN", "message", e.getReason() != null ? e.getReason() : "Token invalid or expired"));
         }
@@ -186,6 +186,35 @@ public class AuthController {
                 }
             }
         }
+        return Map.of("success", true);
+    }
+
+    @PostMapping("/api/auth/change-password")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, Object> changePassword(
+        @AuthenticationPrincipal AuthenticatedUser principal,
+        @RequestBody Map<String, String> body
+    ) {
+        String currentPassword = body.get("currentPassword");
+        String newPassword = body.get("newPassword");
+        if (currentPassword == null || newPassword == null || newPassword.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Current and new password are required");
+        }
+        if (newPassword.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be at least 6 characters");
+        }
+
+        AppUser user = appUserRepository.findByEmailIgnoreCase(principal.email())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Current password is incorrect");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
+        appUserRepository.save(user);
+
         return Map.of("success", true);
     }
 
@@ -226,11 +255,11 @@ public class AuthController {
     }
 
     private Map<String, Object> authResponse(AppUser user, String deviceName, String platform) {
-        String rawRefreshToken = refreshTokenService.generate(user.getId(), deviceName, platform);
-        return authResponseWithToken(user, rawRefreshToken);
+        RefreshTokenService.IssuedToken issued = refreshTokenService.generate(user.getId(), deviceName, platform);
+        return authResponseWithToken(user, issued);
     }
 
-    private Map<String, Object> authResponseWithToken(AppUser user, String rawRefreshToken) {
+    private Map<String, Object> authResponseWithToken(AppUser user, RefreshTokenService.IssuedToken issued) {
         Map<String, Object> userMap = new LinkedHashMap<>();
         userMap.put("id", user.getId());
         userMap.put("fullName", user.getFullName());
@@ -239,10 +268,11 @@ public class AuthController {
         userMap.put("assignedSite", user.getAssignedSite());
         userMap.put("guestSubRole", user.getGuestSubRole());
         userMap.put("goldbodLicenseNumber", user.getGoldbodLicenseNumber());
+        userMap.put("mustChangePassword", Boolean.TRUE.equals(user.getMustChangePassword()));
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("token", jwtService.createToken(user));
-        result.put("refreshToken", rawRefreshToken);
+        result.put("token", jwtService.createToken(user, issued.sessionId()));
+        result.put("refreshToken", issued.raw());
         result.put("user", userMap);
         return result;
     }

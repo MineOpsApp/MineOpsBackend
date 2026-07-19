@@ -1,6 +1,7 @@
 package MineOpsBackend.controller;
 
 import MineOpsBackend.dto.CreateGuestRequest;
+import MineOpsBackend.dto.CreateStaffAccountRequest;
 import MineOpsBackend.dto.RenewGuestSessionRequest;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.repository.AppUserRepository;
@@ -98,6 +99,7 @@ public class AdminController {
         guest.setSessionExpiresAt(LocalDateTime.now().plusHours(
             request.sessionHours() != null ? request.sessionHours() : 24
         ));
+        guest.setMustChangePassword(true);
         appUserRepository.save(guest);
 
         auditLogService.record(
@@ -161,6 +163,7 @@ public Map<String, Object> resetPassword(
     user.setPasswordHash(passwordEncoder.encode(tempPassword));
     user.setFailedLoginAttempts(0);
     user.setLockedUntil(null);
+    user.setMustChangePassword(true);
     appUserRepository.save(user);
     refreshTokenService.revokeAll(user.getId());
 
@@ -301,6 +304,46 @@ public Map<String, Object> approveBuyer(
     auditLogService.record("BUYER_VERIFIED", admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
     return Map.of("email", user.getEmail(), "fullName", user.getFullName(), "approved", true);
+}
+
+@PostMapping("/api/admin/staff/create")
+@PreAuthorize("hasAuthority('ROLE_SUPERVISOR')")
+public Map<String, Object> createStaffAccount(
+    @AuthenticationPrincipal AuthenticatedUser admin,
+    @Valid @RequestBody CreateStaffAccountRequest request
+) {
+    String email = request.email().trim().toLowerCase();
+    if (appUserRepository.existsByEmailIgnoreCase(email)) {
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already registered");
+    }
+
+    AppUser staff = new AppUser(
+        request.fullName().trim(),
+        email,
+        passwordEncoder.encode(request.password()),
+        request.role(),
+        request.assignedSite()
+    );
+    staff.setMustChangePassword(true);
+    appUserRepository.save(staff);
+
+    auditLogService.record(
+        "STAFF_ACCOUNT_CREATED",
+        admin.role(),
+        admin.fullName(),
+        admin.email(),
+        "AppUser",
+        staff.getId(),
+        email + " as " + request.role() + " at " + request.assignedSite()
+    );
+
+    return Map.of(
+        "id", staff.getId(),
+        "email", staff.getEmail(),
+        "fullName", staff.getFullName(),
+        "role", staff.getRole(),
+        "assignedSite", staff.getAssignedSite()
+    );
 }
 
 @PostMapping("/api/admin/buyers/reject")

@@ -78,11 +78,11 @@ public class GuestRedemptionController {
             "GuestAccessCode", code.getId(),
             code.getSite() + " sub=" + code.getGuestSubRole());
 
-        String rawRefreshToken = refreshTokenService.generate(guest.getId(), null, null);
-        return ResponseEntity.ok(buildAuthResponse(guest, rawRefreshToken));
+        RefreshTokenService.IssuedToken issued = refreshTokenService.generate(guest.getId(), null, null);
+        return ResponseEntity.ok(buildAuthResponse(guest, issued));
     }
 
-    private Map<String, Object> buildAuthResponse(AppUser user, String rawRefreshToken) {
+    private Map<String, Object> buildAuthResponse(AppUser user, RefreshTokenService.IssuedToken issued) {
         Map<String, Object> userMap = new LinkedHashMap<>();
         userMap.put("id", user.getId());
         userMap.put("fullName", user.getFullName());
@@ -92,8 +92,8 @@ public class GuestRedemptionController {
         userMap.put("guestSubRole", user.getGuestSubRole());
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("token", jwtService.createToken(user));
-        result.put("refreshToken", rawRefreshToken);
+        result.put("token", jwtService.createToken(user, issued.sessionId()));
+        result.put("refreshToken", issued.raw());
         result.put("user", userMap);
         return result;
     }

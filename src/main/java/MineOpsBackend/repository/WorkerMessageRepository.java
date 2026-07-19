@@ -8,5 +8,6 @@ import java.util.List;
 public interface WorkerMessageRepository extends JpaRepository<WorkerMessage, Long> {
     List<WorkerMessage> findBySiteIgnoreCaseOrderByCreatedAtDesc(String site);
     List<WorkerMessage> findBySenderEmailIgnoreCaseOrderByCreatedAtDesc(String senderEmail);
+    List<WorkerMessage> findBySenderEmailIgnoreCaseOrRecipientEmailIgnoreCaseOrderByCreatedAtDesc(String senderEmail, String recipientEmail);
     long countBySiteIgnoreCaseAndReadAtIsNull(String site);
 }

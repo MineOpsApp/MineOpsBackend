@@ -52,6 +52,8 @@ public class AppUser {
     private LocalDateTime termsAcceptedAt;
     private LocalDateTime deletedAt;
 
+    private Boolean mustChangePassword = false;
+
     @Column(columnDefinition = "TEXT")
     private String profilePhoto;
 
@@ -196,4 +198,7 @@ public void setTermsAcceptedAt(LocalDateTime v) { this.termsAcceptedAt = v; }
 
 public LocalDateTime getDeletedAt() { return deletedAt; }
 public void setDeletedAt(LocalDateTime v) { this.deletedAt = v; }
+
+public Boolean getMustChangePassword() { return mustChangePassword; }
+public void setMustChangePassword(Boolean v) { this.mustChangePassword = v; }
 }

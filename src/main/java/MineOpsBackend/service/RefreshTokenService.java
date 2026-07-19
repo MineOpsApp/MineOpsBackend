@@ -17,6 +17,8 @@ import java.util.List;
 @Service
 public class RefreshTokenService {
 
+    public record IssuedToken(Long sessionId, String raw) {}
+
     private static final int EXPIRY_DAYS = 30;
     private final RefreshTokenRepository repo;
 
@@ -24,7 +26,7 @@ public class RefreshTokenService {
         this.repo = repo;
     }
 
-    public String generate(Long userId, String deviceName, String platform) {
+    public IssuedToken generate(Long userId, String deviceName, String platform) {
         repo.deleteExpiredBefore(LocalDateTime.now());
 
         String raw = randomBase64();
@@ -33,8 +35,8 @@ public class RefreshTokenService {
         token.setDeviceName(deviceName);
         token.setPlatform(platform);
         token.setLastUsedAt(LocalDateTime.now());
-        repo.save(token);
-        return raw;
+        RefreshToken saved = repo.save(token);
+        return new IssuedToken(saved.getId(), raw);
     }
 
     public RefreshToken validate(String rawToken) {
@@ -53,10 +55,17 @@ public class RefreshTokenService {
         return token;
     }
 
-    public String rotate(RefreshToken old) {
+    public IssuedToken rotate(RefreshToken old) {
         old.setRevoked(true);
         repo.save(old);
         return generate(old.getUserId(), old.getDeviceName(), old.getPlatform());
+    }
+
+    public boolean isSessionValid(Long sessionId) {
+        if (sessionId == null) return false;
+        return repo.findById(sessionId)
+            .map(t -> !Boolean.TRUE.equals(t.getRevoked()) && t.getExpiresAt().isAfter(LocalDateTime.now()))
+            .orElse(false);
     }
 
     public void revokeAll(Long userId) {
