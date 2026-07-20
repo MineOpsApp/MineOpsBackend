@@ -1,0 +1,3 @@
+ALTER TABLE danger_zones ADD COLUMN latitude DOUBLE PRECISION;
+ALTER TABLE danger_zones ADD COLUMN longitude DOUBLE PRECISION;
+ALTER TABLE danger_zones ADD COLUMN radius_meters INTEGER;

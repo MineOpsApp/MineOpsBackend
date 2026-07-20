@@ -73,7 +73,7 @@ public class DangerZoneController {
     }
 
     @PostMapping("/api/danger-zones")
-    @PreAuthorize("hasAuthority('ROLE_SAFETY_OFFICER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public DangerZone createDangerZone(
         @AuthenticationPrincipal AuthenticatedUser user,
         @Valid @RequestBody CreateDangerZoneRequest request
@@ -83,6 +83,9 @@ public class DangerZoneController {
             request.zoneName(),
             request.riskLevel()
         );
+        zone.setLatitude(request.latitude());
+        zone.setLongitude(request.longitude());
+        zone.setRadiusMeters(request.radiusMeters());
 
         DangerZone saved = dangerZoneRepository.save(zone);
         auditLogService.record(
