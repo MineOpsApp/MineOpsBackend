@@ -12,6 +12,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -90,9 +91,49 @@ public class ProfileController {
                 appUser.setGoldbodLicenseNumber(v == null || v.isBlank() ? null : v.trim());
             }
         }
+        if (body.containsKey("dateOfBirth")) {
+            String dobStr = body.get("dateOfBirth");
+            if (dobStr == null || dobStr.isBlank()) {
+                appUser.setDateOfBirth(null);
+            } else {
+                LocalDate dob;
+                try {
+                    dob = LocalDate.parse(dobStr.trim());
+                } catch (Exception e) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dateOfBirth must be in YYYY-MM-DD format.");
+                }
+                LocalDate today = LocalDate.now();
+                if (dob.isAfter(today))
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Date of birth cannot be in the future.");
+                if (dob.isAfter(today.minusYears(MINIMUM_WORKING_AGE)))
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Worker must be at least " + MINIMUM_WORKING_AGE + " years old (Ghana Labour Act, hazardous work).");
+                appUser.setDateOfBirth(dob);
+            }
+        }
+        if (body.containsKey("bloodType")) {
+            String bt = body.get("bloodType");
+            if (bt != null && !bt.isBlank()
+                    && !java.util.Set.of("A+","A-","B+","B-","AB+","AB-","O+","O-","UNKNOWN").contains(bt.toUpperCase()))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "bloodType must be one of: A+, A-, B+, B-, AB+, AB-, O+, O-, Unknown.");
+            appUser.setBloodType(bt == null || bt.isBlank() ? null : bt.toUpperCase());
+        }
+        if (body.containsKey("medicalNotes")) {
+            String v = body.get("medicalNotes");
+            appUser.setMedicalNotes(v == null || v.isBlank() ? null : v.trim());
+        }
+        if (body.containsKey("homeAddress")) {
+            String v = body.get("homeAddress");
+            if (v != null && v.length() > 500)
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "homeAddress must be 500 characters or less.");
+            appUser.setHomeAddress(v == null || v.isBlank() ? null : v.trim());
+        }
         userRepo.save(appUser);
         return buildProfile(appUser);
     }
+
+    private static final int MINIMUM_WORKING_AGE = 18;
 
     @GetMapping("/api/profile/notification-preferences")
     @PreAuthorize("isAuthenticated()")
@@ -120,6 +161,51 @@ public class ProfileController {
         m.put("notifyHazard", !Boolean.FALSE.equals(appUser.getNotifyHazard()));
         m.put("notifyNotice", !Boolean.FALSE.equals(appUser.getNotifyNotice()));
         return m;
+    }
+
+    @org.springframework.web.bind.annotation.PatchMapping("/api/profile/{email}/hr-details")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public Map<String, Object> updateHrDetails(
+        @PathVariable String email,
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @RequestBody Map<String, Object> body
+    ) {
+        AppUser worker = userRepo.findByEmailIgnoreCase(email)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Worker not found"));
+        if (!user.assignedSite().equalsIgnoreCase(worker.getAssignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker is not on your site");
+        }
+        if (body.containsKey("jobTitle")) {
+            Object v = body.get("jobTitle");
+            worker.setJobTitle(v == null || v.toString().isBlank() ? null : v.toString().trim());
+        }
+        if (body.containsKey("employmentType")) {
+            Object v = body.get("employmentType");
+            String et = v == null ? null : v.toString().trim().toUpperCase();
+            if (et != null && !et.isBlank()
+                    && !java.util.Set.of("PERMANENT","CONTRACT","CASUAL").contains(et))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "employmentType must be PERMANENT, CONTRACT, or CASUAL.");
+            worker.setEmploymentType(et == null || et.isBlank() ? null : et);
+        }
+        if (body.containsKey("nationalIdNumber")) {
+            Object v = body.get("nationalIdNumber");
+            worker.setNationalIdNumber(v == null || v.toString().isBlank() ? null : v.toString().trim());
+        }
+        if (body.containsKey("ssnitNumber")) {
+            Object v = body.get("ssnitNumber");
+            worker.setSsnitNumber(v == null || v.toString().isBlank() ? null : v.toString().trim());
+        }
+        if (body.containsKey("tinNumber")) {
+            Object v = body.get("tinNumber");
+            worker.setTinNumber(v == null || v.toString().isBlank() ? null : v.toString().trim());
+        }
+        if (body.containsKey("fitForDuty")) {
+            Object v = body.get("fitForDuty");
+            worker.setFitForDuty(v == null || !"false".equalsIgnoreCase(v.toString()));
+        }
+        userRepo.save(worker);
+        return buildProfile(worker);
     }
 
     @GetMapping("/api/profile/{email}")
@@ -162,6 +248,16 @@ public class ProfileController {
             m.put("goldbodLicenseNumber", u.getGoldbodLicenseNumber());
             m.put("buyerVerificationStatus", u.getBuyerVerificationStatus());
         }
+        m.put("dateOfBirth", u.getDateOfBirth());
+        m.put("bloodType", u.getBloodType());
+        m.put("medicalNotes", u.getMedicalNotes());
+        m.put("homeAddress", u.getHomeAddress());
+        m.put("nationalIdNumber", u.getNationalIdNumber());
+        m.put("ssnitNumber", u.getSsnitNumber());
+        m.put("tinNumber", u.getTinNumber());
+        m.put("jobTitle", u.getJobTitle());
+        m.put("employmentType", u.getEmploymentType());
+        m.put("fitForDuty", !Boolean.FALSE.equals(u.getFitForDuty()));
         return m;
     }
 }

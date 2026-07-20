@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
@@ -76,6 +77,34 @@ public class AppUser {
     private String buyerVerificationStatus;
     @Column(columnDefinition = "TEXT")
     private String verificationDocument;
+
+    private LocalDate dateOfBirth;
+
+    @Column(length = 10)
+    private String bloodType;
+
+    @Column(columnDefinition = "TEXT")
+    private String medicalNotes;
+
+    @Column(length = 500)
+    private String homeAddress;
+
+    @Column(length = 50)
+    private String nationalIdNumber;
+
+    @Column(length = 50)
+    private String ssnitNumber;
+
+    @Column(length = 50)
+    private String tinNumber;
+
+    @Column(length = 100)
+    private String jobTitle;
+
+    @Column(length = 20)
+    private String employmentType;
+
+    private Boolean fitForDuty = true;
 
     public AppUser() {
     }
@@ -201,4 +230,34 @@ public void setDeletedAt(LocalDateTime v) { this.deletedAt = v; }
 
 public Boolean getMustChangePassword() { return mustChangePassword; }
 public void setMustChangePassword(Boolean v) { this.mustChangePassword = v; }
+
+public LocalDate getDateOfBirth() { return dateOfBirth; }
+public void setDateOfBirth(LocalDate v) { this.dateOfBirth = v; }
+
+public String getBloodType() { return bloodType; }
+public void setBloodType(String v) { this.bloodType = v; }
+
+public String getMedicalNotes() { return medicalNotes; }
+public void setMedicalNotes(String v) { this.medicalNotes = v; }
+
+public String getHomeAddress() { return homeAddress; }
+public void setHomeAddress(String v) { this.homeAddress = v; }
+
+public String getNationalIdNumber() { return nationalIdNumber; }
+public void setNationalIdNumber(String v) { this.nationalIdNumber = v; }
+
+public String getSsnitNumber() { return ssnitNumber; }
+public void setSsnitNumber(String v) { this.ssnitNumber = v; }
+
+public String getTinNumber() { return tinNumber; }
+public void setTinNumber(String v) { this.tinNumber = v; }
+
+public String getJobTitle() { return jobTitle; }
+public void setJobTitle(String v) { this.jobTitle = v; }
+
+public String getEmploymentType() { return employmentType; }
+public void setEmploymentType(String v) { this.employmentType = v; }
+
+public Boolean getFitForDuty() { return fitForDuty; }
+public void setFitForDuty(Boolean v) { this.fitForDuty = v; }
 }

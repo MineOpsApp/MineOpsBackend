@@ -1,0 +1,10 @@
+ALTER TABLE app_users ADD COLUMN date_of_birth DATE;
+ALTER TABLE app_users ADD COLUMN blood_type VARCHAR(10);
+ALTER TABLE app_users ADD COLUMN medical_notes TEXT;
+ALTER TABLE app_users ADD COLUMN home_address VARCHAR(500);
+ALTER TABLE app_users ADD COLUMN national_id_number VARCHAR(50);
+ALTER TABLE app_users ADD COLUMN ssnit_number VARCHAR(50);
+ALTER TABLE app_users ADD COLUMN tin_number VARCHAR(50);
+ALTER TABLE app_users ADD COLUMN job_title VARCHAR(100);
+ALTER TABLE app_users ADD COLUMN employment_type VARCHAR(20);
+ALTER TABLE app_users ADD COLUMN fit_for_duty BOOLEAN DEFAULT TRUE;
