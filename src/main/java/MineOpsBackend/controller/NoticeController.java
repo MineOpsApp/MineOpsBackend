@@ -60,9 +60,16 @@ public class NoticeController {
 @PreAuthorize("isAuthenticated()")
 public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
     String site = user.assignedSite() != null ? user.assignedSite() : "";
-    Page<Notice> noticesPage = "worker".equals(user.role()) || "guest".equals(user.role())
-        ? noticeRepository.findActiveNoticesBySite(java.time.LocalDateTime.now(java.time.ZoneOffset.UTC), site, pageable)
-        : noticeRepository.findBySiteIgnoreCaseOrderByCreatedAtDesc(site, pageable);
+    java.time.LocalDateTime now = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
+    Page<Notice> noticesPage;
+    if ("worker".equals(user.role()) || "guest".equals(user.role())) {
+        java.time.LocalDateTime userCreatedAt = appUserRepository.findByEmailIgnoreCase(user.email())
+            .map(MineOpsBackend.model.AppUser::getCreatedAt)
+            .orElse(java.time.LocalDateTime.MIN);
+        noticesPage = noticeRepository.findActiveNoticesBySiteForUser(now, site, userCreatedAt, pageable);
+    } else {
+        noticesPage = noticeRepository.findBySiteIgnoreCaseOrderByCreatedAtDesc(site, pageable);
+    }
 
     List<Long> noticeIds = noticesPage.getContent().stream().map(Notice::getId).toList();
 
