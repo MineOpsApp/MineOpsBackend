@@ -59,8 +59,9 @@ public class GuestRedemptionController {
         if (code.getRedemptionCount() >= code.getMaxRedemptions())
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This code has reached its guest limit");
 
-        // Auto-generate placeholder email — guests never see or use this
-        String email = "guest-" + UUID.randomUUID().toString().replace("-", "").substring(0, 12) + "@mineops.guest";
+        String email = req.email().trim().toLowerCase();
+        if (userRepo.existsByEmailIgnoreCase(email))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "An account with this email already exists.");
         String rawPassword = UUID.randomUUID().toString();
 
         AppUser guest = new AppUser(req.fullName().trim(), email,

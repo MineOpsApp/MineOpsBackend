@@ -106,6 +106,45 @@ public class AppUser {
 
     private Boolean fitForDuty = true;
 
+    // Common identity
+    @Column(length = 100)
+    private String nationality;
+
+    // Buyer profile fields
+    @Column(length = 100)
+    private String companyRegistrationNumber;
+    @Column(length = 100)
+    private String countryOfIncorporation;
+    @Column(length = 50)
+    private String businessType;
+    @Column(length = 100)
+    private String positionTitle;
+    @Column(columnDefinition = "TEXT")
+    private String governmentIdDocument;
+    @Column(length = 100)
+    private String exportLicenceNumber;
+    @Column(length = 255)
+    private String operatingJurisdiction;
+    @Column(length = 500)
+    private String mineralsOfInterest;
+    @Column(length = 255)
+    private String typicalOrderVolume;
+    @Column(length = 50)
+    private String preferredTransactionMethod;
+    private Boolean ndaSigned = false;
+
+    // Government account fields
+    @Column(length = 255)
+    private String regulatoryBodyName;
+    @Column(length = 100)
+    private String officialIdBadgeNumber;
+    @Column(length = 255)
+    private String issuingAuthority;
+    @Column(columnDefinition = "TEXT")
+    private String officialIdDocument;
+    @Column(length = 255)
+    private String jurisdictionOfAuthority;
+
     public AppUser() {
     }
 
@@ -260,4 +299,55 @@ public void setEmploymentType(String v) { this.employmentType = v; }
 
 public Boolean getFitForDuty() { return fitForDuty; }
 public void setFitForDuty(Boolean v) { this.fitForDuty = v; }
+
+public String getNationality() { return nationality; }
+public void setNationality(String v) { this.nationality = v; }
+
+public String getCompanyRegistrationNumber() { return companyRegistrationNumber; }
+public void setCompanyRegistrationNumber(String v) { this.companyRegistrationNumber = v; }
+
+public String getCountryOfIncorporation() { return countryOfIncorporation; }
+public void setCountryOfIncorporation(String v) { this.countryOfIncorporation = v; }
+
+public String getBusinessType() { return businessType; }
+public void setBusinessType(String v) { this.businessType = v; }
+
+public String getPositionTitle() { return positionTitle; }
+public void setPositionTitle(String v) { this.positionTitle = v; }
+
+public String getGovernmentIdDocument() { return governmentIdDocument; }
+public void setGovernmentIdDocument(String v) { this.governmentIdDocument = v; }
+
+public String getExportLicenceNumber() { return exportLicenceNumber; }
+public void setExportLicenceNumber(String v) { this.exportLicenceNumber = v; }
+
+public String getOperatingJurisdiction() { return operatingJurisdiction; }
+public void setOperatingJurisdiction(String v) { this.operatingJurisdiction = v; }
+
+public String getMineralsOfInterest() { return mineralsOfInterest; }
+public void setMineralsOfInterest(String v) { this.mineralsOfInterest = v; }
+
+public String getTypicalOrderVolume() { return typicalOrderVolume; }
+public void setTypicalOrderVolume(String v) { this.typicalOrderVolume = v; }
+
+public String getPreferredTransactionMethod() { return preferredTransactionMethod; }
+public void setPreferredTransactionMethod(String v) { this.preferredTransactionMethod = v; }
+
+public Boolean getNdaSigned() { return ndaSigned; }
+public void setNdaSigned(Boolean v) { this.ndaSigned = v; }
+
+public String getRegulatoryBodyName() { return regulatoryBodyName; }
+public void setRegulatoryBodyName(String v) { this.regulatoryBodyName = v; }
+
+public String getOfficialIdBadgeNumber() { return officialIdBadgeNumber; }
+public void setOfficialIdBadgeNumber(String v) { this.officialIdBadgeNumber = v; }
+
+public String getIssuingAuthority() { return issuingAuthority; }
+public void setIssuingAuthority(String v) { this.issuingAuthority = v; }
+
+public String getOfficialIdDocument() { return officialIdDocument; }
+public void setOfficialIdDocument(String v) { this.officialIdDocument = v; }
+
+public String getJurisdictionOfAuthority() { return jurisdictionOfAuthority; }
+public void setJurisdictionOfAuthority(String v) { this.jurisdictionOfAuthority = v; }
 }

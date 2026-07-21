@@ -90,7 +90,35 @@ public class ProfileController {
                 String v = body.get("goldbodLicenseNumber");
                 appUser.setGoldbodLicenseNumber(v == null || v.isBlank() ? null : v.trim());
             }
+            if (body.containsKey("companyRegistrationNumber")) appUser.setCompanyRegistrationNumber(trim(body.get("companyRegistrationNumber")));
+            if (body.containsKey("countryOfIncorporation")) appUser.setCountryOfIncorporation(trim(body.get("countryOfIncorporation")));
+            if (body.containsKey("businessType")) appUser.setBusinessType(trim(body.get("businessType")));
+            if (body.containsKey("positionTitle")) appUser.setPositionTitle(trim(body.get("positionTitle")));
+            if (body.containsKey("exportLicenceNumber")) appUser.setExportLicenceNumber(trim(body.get("exportLicenceNumber")));
+            if (body.containsKey("operatingJurisdiction")) appUser.setOperatingJurisdiction(trim(body.get("operatingJurisdiction")));
+            if (body.containsKey("mineralsOfInterest")) appUser.setMineralsOfInterest(trim(body.get("mineralsOfInterest")));
+            if (body.containsKey("typicalOrderVolume")) appUser.setTypicalOrderVolume(trim(body.get("typicalOrderVolume")));
+            if (body.containsKey("preferredTransactionMethod")) appUser.setPreferredTransactionMethod(trim(body.get("preferredTransactionMethod")));
+            if (body.containsKey("governmentIdDocument")) {
+                String doc = body.get("governmentIdDocument");
+                if (doc != null && doc.length() > 2_000_000)
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document is too large.");
+                appUser.setGovernmentIdDocument(doc);
+            }
         }
+        if ("government".equals(appUser.getRole())) {
+            if (body.containsKey("regulatoryBodyName")) appUser.setRegulatoryBodyName(trim(body.get("regulatoryBodyName")));
+            if (body.containsKey("officialIdBadgeNumber")) appUser.setOfficialIdBadgeNumber(trim(body.get("officialIdBadgeNumber")));
+            if (body.containsKey("issuingAuthority")) appUser.setIssuingAuthority(trim(body.get("issuingAuthority")));
+            if (body.containsKey("jurisdictionOfAuthority")) appUser.setJurisdictionOfAuthority(trim(body.get("jurisdictionOfAuthority")));
+            if (body.containsKey("officialIdDocument")) {
+                String doc = body.get("officialIdDocument");
+                if (doc != null && doc.length() > 2_000_000)
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document is too large.");
+                appUser.setOfficialIdDocument(doc);
+            }
+        }
+        if (body.containsKey("nationality")) appUser.setNationality(trim(body.get("nationality")));
         if (body.containsKey("dateOfBirth")) {
             String dobStr = body.get("dateOfBirth");
             if (dobStr == null || dobStr.isBlank()) {
@@ -134,6 +162,8 @@ public class ProfileController {
     }
 
     private static final int MINIMUM_WORKING_AGE = 18;
+
+    private static String trim(String v) { return v == null || v.isBlank() ? null : v.trim(); }
 
     @GetMapping("/api/profile/notification-preferences")
     @PreAuthorize("isAuthenticated()")
@@ -243,10 +273,27 @@ public class ProfileController {
         m.put("momoNumber", u.getMomoNumber());
         m.put("momoNetwork", u.getMomoNetwork());
         m.put("insuranceStatus", u.getInsuranceStatus() != null ? u.getInsuranceStatus() : "NOT_INSURED");
+        m.put("nationality", u.getNationality());
         if ("buyer".equals(u.getRole())) {
             m.put("businessName", u.getBusinessName());
             m.put("goldbodLicenseNumber", u.getGoldbodLicenseNumber());
             m.put("buyerVerificationStatus", u.getBuyerVerificationStatus());
+            m.put("companyRegistrationNumber", u.getCompanyRegistrationNumber());
+            m.put("countryOfIncorporation", u.getCountryOfIncorporation());
+            m.put("businessType", u.getBusinessType());
+            m.put("positionTitle", u.getPositionTitle());
+            m.put("exportLicenceNumber", u.getExportLicenceNumber());
+            m.put("operatingJurisdiction", u.getOperatingJurisdiction());
+            m.put("mineralsOfInterest", u.getMineralsOfInterest());
+            m.put("typicalOrderVolume", u.getTypicalOrderVolume());
+            m.put("preferredTransactionMethod", u.getPreferredTransactionMethod());
+            m.put("ndaSigned", Boolean.TRUE.equals(u.getNdaSigned()));
+        }
+        if ("government".equals(u.getRole())) {
+            m.put("regulatoryBodyName", u.getRegulatoryBodyName());
+            m.put("officialIdBadgeNumber", u.getOfficialIdBadgeNumber());
+            m.put("issuingAuthority", u.getIssuingAuthority());
+            m.put("jurisdictionOfAuthority", u.getJurisdictionOfAuthority());
         }
         m.put("dateOfBirth", u.getDateOfBirth());
         m.put("bloodType", u.getBloodType());
