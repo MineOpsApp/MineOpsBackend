@@ -2,10 +2,13 @@ package MineOpsBackend.controller;
 
 import MineOpsBackend.dto.SignOffStepRequest;
 import MineOpsBackend.dto.StartDrillRequest;
+import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.DrillOperation;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.DrillOperationRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.PushNotificationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,11 +27,20 @@ import java.util.List;
 public class DrillController {
 
     private final DrillOperationRepository drillOperationRepository;
+    private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
+    private final PushNotificationService pushNotificationService;
 
-    public DrillController(DrillOperationRepository drillOperationRepository, AuditLogService auditLogService) {
+    public DrillController(
+        DrillOperationRepository drillOperationRepository,
+        AppUserRepository appUserRepository,
+        AuditLogService auditLogService,
+        PushNotificationService pushNotificationService
+    ) {
         this.drillOperationRepository = drillOperationRepository;
+        this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
+        this.pushNotificationService = pushNotificationService;
     }
 
     @PostMapping("/api/drill-operations")
@@ -100,7 +112,33 @@ public class DrillController {
         auditLogService.record("DRILL_STEP_SIGNED_OFF", user.role(), user.fullName(), user.email(),
             "DrillOperation", id, "Step: " + request.step());
 
+        if ("drilling".equals(request.step()) || "blasting".equals(request.step())) {
+            notifySafetyStaff(saved, request.step(), user.assignedSite());
+        }
+
         return saved;
+    }
+
+    private void notifySafetyStaff(DrillOperation op, String step, String site) {
+        List<String> tokens = appUserRepository
+            .findByRoleInAndAssignedSiteIgnoreCase(List.of("supervisor", "safetyOfficer"), site)
+            .stream()
+            .map(AppUser::getPushToken)
+            .filter(t -> t != null && !t.isBlank())
+            .toList();
+
+        if (tokens.isEmpty()) return;
+
+        String title, body;
+        if ("drilling".equals(step)) {
+            title = "Blasting Step Ready — " + op.getZone();
+            body = op.getWorkerName() + " (" + op.getDrillType() + ") has completed drilling and is ready to blast";
+        } else {
+            title = "Blasting Confirmed — " + op.getZone();
+            body = op.getWorkerName() + " (" + op.getDrillType() + ") has signed off the blasting step";
+        }
+
+        pushNotificationService.sendToTokens(tokens, title, body, "default");
     }
 
     @GetMapping("/api/drill-operations/mine")
