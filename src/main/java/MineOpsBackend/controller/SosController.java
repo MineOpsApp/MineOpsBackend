@@ -20,9 +20,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 public class SosController {
+
+    private static final Logger log = LoggerFactory.getLogger(SosController.class);
 
     private final SosAlertRepository sosAlertRepository;
     private final AppUserRepository appUserRepository;
@@ -97,7 +101,7 @@ public class SosController {
                 notificationService.notify(recipient.getEmail(), "SOS", notifTitle, notifBody, "SosAlert", saved.getId());
             }
         } catch (Exception e) {
-            System.err.println("Push notification failed for SOS: " + e.getMessage());
+            log.warn("Push notification failed for SOS: {}", e.getMessage());
         }
 
         return saved;

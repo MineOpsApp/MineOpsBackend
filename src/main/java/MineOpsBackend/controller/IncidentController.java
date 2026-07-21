@@ -28,9 +28,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 public class IncidentController {
+
+    private static final Logger log = LoggerFactory.getLogger(IncidentController.class);
 
     private final IncidentReportRepository incidentReportRepository;
     private final AppUserRepository appUserRepository;
@@ -110,7 +114,7 @@ public class IncidentController {
                     notificationService.notify(recipient.getEmail(), "INCIDENT", notifTitle, notifBody, "IncidentReport", saved.getId());
                 }
             } catch (Exception e) {
-                System.err.println("Push notification failed for incident: " + e.getMessage());
+                log.warn("Push notification failed for incident: {}", e.getMessage());
             }
         }
 

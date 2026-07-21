@@ -25,9 +25,13 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 public class BlastController {
+
+    private static final Logger log = LoggerFactory.getLogger(BlastController.class);
 
     private final BlastScheduleRepository blastScheduleRepository;
     private final AppUserRepository appUserRepository;
@@ -94,7 +98,7 @@ public class BlastController {
                 notificationService.notify(recipient.getEmail(), "BLAST", notifTitle, notifBody, "BlastSchedule", saved.getId());
             }
         } catch (Exception e) {
-            System.err.println("Push notification failed for blast: " + e.getMessage());
+            log.warn("Push notification failed for blast: {}", e.getMessage());
         }
 
         return saved;
@@ -154,7 +158,7 @@ public class BlastController {
                 notificationService.notify(recipient.getEmail(), "BLAST", notifTitle, notifBody, "BlastSchedule", id);
             }
         } catch (Exception e) {
-            System.err.println("Push notification failed for blast cancellation: " + e.getMessage());
+            log.warn("Push notification failed for blast cancellation: {}", e.getMessage());
         }
 
         return saved;

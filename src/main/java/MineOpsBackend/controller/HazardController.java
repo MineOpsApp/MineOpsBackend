@@ -30,9 +30,13 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 public class HazardController {
+
+    private static final Logger log = LoggerFactory.getLogger(HazardController.class);
 
     private final HazardReportRepository hazardReportRepository;
     private final AppUserRepository appUserRepository;
@@ -135,7 +139,7 @@ public class HazardController {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Push notification failed for hazard: " + e.getMessage());
+            log.warn("Push notification failed for hazard: {}", e.getMessage());
         }
 
         return saved;

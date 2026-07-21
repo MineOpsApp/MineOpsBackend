@@ -29,9 +29,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 public class NoticeController {
+
+    private static final Logger log = LoggerFactory.getLogger(NoticeController.class);
 
     private final NoticeRepository noticeRepository;
     private final NoticeSeenRepository noticeSeenRepository;
@@ -134,7 +138,7 @@ public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal Authenticat
                 notificationService.notify(recipient.getEmail(), "NOTICE", notifTitle, notifBody, "Notice", saved.getId());
             }
         } catch (Exception e) {
-            System.err.println("Push notification failed for notice: " + e.getMessage());
+            log.warn("Push notification failed for notice: {}", e.getMessage());
         }
 
         return noticeResponse(saved, noticeSeenRepository.findByNoticeIdOrderBySeenAtDesc(saved.getId()));

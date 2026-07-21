@@ -2,6 +2,7 @@ package MineOpsBackend.controller;
 
 import MineOpsBackend.dto.CreateDangerZoneRequest;
 import MineOpsBackend.dto.UpdateZoneGpsRequest;
+import MineOpsBackend.dto.UpdateZoneMetaRequest;
 import MineOpsBackend.dto.UpdateZonePositionRequest;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.BlastSchedule;
@@ -35,10 +36,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 public class DangerZoneController {
 
+    private static final Logger log = LoggerFactory.getLogger(DangerZoneController.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
     private final DangerZoneRepository dangerZoneRepository;
@@ -119,7 +123,7 @@ public class DangerZoneController {
                 notificationService.notify(recipient.getEmail(), "DANGER_ZONE", notifTitle, notifBody, "DangerZone", saved.getId());
             }
         } catch (Exception e) {
-            System.err.println("Push notification failed for danger zone: " + e.getMessage());
+            log.warn("Push notification failed for danger zone: {}", e.getMessage());
         }
 
         return saved;
@@ -147,6 +151,33 @@ public class DangerZoneController {
             "DangerZone",
             saved.getId(),
             saved.getZoneName() + " (" + request.points().size() + " vertices)"
+        );
+        return saved;
+    }
+
+    @PatchMapping("/api/danger-zones/{id}/meta")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public DangerZone updateZoneMeta(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @Valid @RequestBody UpdateZoneMetaRequest request
+    ) {
+        DangerZone zone = findAndCheckSite(id, user);
+        if (request.zoneName() != null && !request.zoneName().isBlank()) {
+            zone.setZoneName(request.zoneName().trim());
+        }
+        if (request.riskLevel() != null) {
+            zone.setRiskLevel(request.riskLevel());
+        }
+        DangerZone saved = dangerZoneRepository.save(zone);
+        auditLogService.record(
+            "ZONE_META_UPDATED",
+            user.role(),
+            user.fullName(),
+            user.email(),
+            "DangerZone",
+            saved.getId(),
+            saved.getZoneName() + " - " + saved.getRiskLevel()
         );
         return saved;
     }
@@ -208,6 +239,12 @@ public class DangerZoneController {
     private DangerZone findAndCheckSite(Long id, AuthenticatedUser user) {
         DangerZone zone = dangerZoneRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Danger zone not found"));
+        System.out.println("[ZONE-CHECK] zoneId=" + id
+            + " zone.site='" + zone.getSite() + "'"
+            + " user.assignedSite='" + user.assignedSite() + "'"
+            + " user.email=" + user.email()
+            + " user.role=" + user.role()
+            + " equalsIgnoreCase=" + (zone.getSite() != null && zone.getSite().equalsIgnoreCase(user.assignedSite())));
         if (!zone.getSite().equalsIgnoreCase(user.assignedSite())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Danger zone belongs to a different site");
         }
