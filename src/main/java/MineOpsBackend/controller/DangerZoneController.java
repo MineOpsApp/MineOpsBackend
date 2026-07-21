@@ -1,6 +1,7 @@
 package MineOpsBackend.controller;
 
 import MineOpsBackend.dto.CreateDangerZoneRequest;
+import MineOpsBackend.dto.UpdateZoneGpsRequest;
 import MineOpsBackend.dto.UpdateZonePositionRequest;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.BlastSchedule;
@@ -146,6 +147,31 @@ public class DangerZoneController {
             "DangerZone",
             saved.getId(),
             saved.getZoneName() + " (" + request.points().size() + " vertices)"
+        );
+        return saved;
+    }
+
+    @PatchMapping("/api/danger-zones/{id}/gps")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public DangerZone updateZoneGps(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @Valid @RequestBody UpdateZoneGpsRequest request
+    ) {
+        DangerZone zone = findAndCheckSite(id, user);
+        zone.setLatitude(request.latitude());
+        zone.setLongitude(request.longitude());
+        zone.setRadiusMeters(request.radiusMeters() == null || request.radiusMeters() < 1 ? 50 : request.radiusMeters());
+
+        DangerZone saved = dangerZoneRepository.save(zone);
+        auditLogService.record(
+            "ZONE_GPS_SET",
+            user.role(),
+            user.fullName(),
+            user.email(),
+            "DangerZone",
+            saved.getId(),
+            saved.getZoneName() + " (" + saved.getLatitude() + ", " + saved.getLongitude() + ")"
         );
         return saved;
     }
