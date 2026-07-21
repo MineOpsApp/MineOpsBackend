@@ -202,7 +202,7 @@ public class ProfileController {
     ) {
         AppUser worker = userRepo.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Worker not found"));
-        if (!user.assignedSite().equalsIgnoreCase(worker.getAssignedSite())) {
+        if (user.assignedSite() == null || !user.assignedSite().equalsIgnoreCase(worker.getAssignedSite())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker is not on your site");
         }
         if (body.containsKey("jobTitle")) {
@@ -246,7 +246,7 @@ public class ProfileController {
     ) {
         AppUser worker = userRepo.findByEmailIgnoreCase(email)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Worker not found"));
-        if (!user.assignedSite().equalsIgnoreCase(worker.getAssignedSite())) {
+        if (user.assignedSite() == null || !user.assignedSite().equalsIgnoreCase(worker.getAssignedSite())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker is not on your site");
         }
         return buildProfile(worker);

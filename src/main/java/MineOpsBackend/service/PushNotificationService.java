@@ -1,6 +1,8 @@
 package MineOpsBackend.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -13,6 +15,8 @@ import java.util.Map;
 
 @Service
 public class PushNotificationService {
+
+    private static final Logger log = LoggerFactory.getLogger(PushNotificationService.class);
 
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(5))
@@ -41,9 +45,9 @@ public class PushNotificationService {
                 .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            System.out.println("Push notification sent: " + response.statusCode());
+            log.debug("Push sent: {}", response.statusCode());
         } catch (Exception e) {
-            System.err.println("Push notification failed: " + e.getMessage());
+            log.warn("Push notification failed: {}", e.getMessage());
         }
     }
 

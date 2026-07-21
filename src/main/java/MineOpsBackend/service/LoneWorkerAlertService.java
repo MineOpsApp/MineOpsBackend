@@ -46,11 +46,13 @@ public class LoneWorkerAlertService {
             }
 
             if (!tokens.isEmpty()) {
+                String lastSeen = session.getLastCheckedInAt() != null
+                    ? session.getLastCheckedInAt().toString().substring(11, 16)
+                    : "never";
                 push.sendToTokens(
                     tokens,
                     "LONE WORKER OVERDUE",
-                    session.getWorkerName() + " has not checked in — last seen " +
-                        session.getLastCheckedInAt().toString().substring(11, 16),
+                    session.getWorkerName() + " has not checked in — last seen " + lastSeen,
                     "lone_worker"
                 );
                 session.setAlerted(true);

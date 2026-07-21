@@ -64,7 +64,7 @@ public class HazardController {
     }
 
     @GetMapping("/api/hazards/site-alerts")
-    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER','ROLE_GUEST')")
     public List<HazardReport> getSiteHazardAlerts(@AuthenticationPrincipal AuthenticatedUser user) {
         return hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite()).stream()
             .filter((hazard) -> !"CLEARED".equalsIgnoreCase(hazard.getStatus()))

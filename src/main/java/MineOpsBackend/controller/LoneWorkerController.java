@@ -53,6 +53,9 @@ public class LoneWorkerController {
             if (intervalMinutes <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "intervalMinutes must be positive");
             }
+            if (intervalMinutes > 480) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "intervalMinutes cannot exceed 480 (8 hours)");
+            }
         }
 
         LoneWorkerSession session = new LoneWorkerSession();

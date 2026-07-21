@@ -58,7 +58,7 @@ public class SearchController {
         List<Map<String, Object>> incidents = List.of();
         List<Map<String, Object>> workers = List.of();
 
-        if (!isBuyer) {
+        if (!isBuyer && site != null) {
             hazards = hazardRepo.searchBySite(site, term, limit).stream().map(h -> {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("id", h.getId());
