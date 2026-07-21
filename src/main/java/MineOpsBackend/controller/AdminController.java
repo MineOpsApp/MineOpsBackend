@@ -7,6 +7,7 @@ import MineOpsBackend.model.AppUser;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.EmailService;
 import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.RefreshTokenService;
 import jakarta.validation.Valid;
@@ -31,14 +32,17 @@ public class AdminController {
     private final AuditLogService auditLogService;
     private final NotificationService notificationService;
     private final RefreshTokenService refreshTokenService;
+    private final EmailService emailService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public AdminController(AppUserRepository appUserRepository, AuditLogService auditLogService,
-                           NotificationService notificationService, RefreshTokenService refreshTokenService) {
+                           NotificationService notificationService, RefreshTokenService refreshTokenService,
+                           EmailService emailService) {
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.notificationService = notificationService;
         this.refreshTokenService = refreshTokenService;
+        this.emailService = emailService;
     }
 
     @PostMapping("/api/admin/guests/renew")
@@ -200,6 +204,12 @@ public Map<String, Object> suspendUser(
     appUserRepository.save(user);
     if (suspend) refreshTokenService.revokeAll(user.getId());
 
+    if (suspend) {
+        emailService.sendAccountSuspended(user.getEmail(), user.getFullName());
+    } else {
+        emailService.sendAccountReinstated(user.getEmail(), user.getFullName());
+    }
+
     auditLogService.record(suspend ? "ACCOUNT_SUSPENDED" : "ACCOUNT_REINSTATED",
         admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
@@ -242,6 +252,7 @@ public Map<String, Object> approveWorker(
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Worker belongs to a different site");
     user.setPending(false);
     appUserRepository.save(user);
+    emailService.sendRegistrationApproved(user.getEmail(), user.getFullName());
     auditLogService.record("WORKER_APPROVED", admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
     return Map.of("email", user.getEmail(), "fullName", user.getFullName(), "approved", true);
@@ -262,6 +273,7 @@ public Map<String, Object> rejectWorker(
     if (!Boolean.TRUE.equals(user.getPending())) {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not pending approval");
     }
+    emailService.sendRegistrationRejected(user.getEmail(), user.getFullName());
     auditLogService.record("WORKER_REJECTED", admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
     appUserRepository.delete(user);
@@ -301,6 +313,7 @@ public Map<String, Object> approveBuyer(
     appUserRepository.save(user);
     notificationService.notify(user.getEmail(), "BUYER_VERIFICATION", "Account Verified",
         "Your buyer account has been verified. You can now access the marketplace.", "AppUser", user.getId());
+    emailService.sendBuyerVerified(user.getEmail(), user.getFullName());
     auditLogService.record("BUYER_VERIFIED", admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
     return Map.of("email", user.getEmail(), "fullName", user.getFullName(), "approved", true);
@@ -361,6 +374,7 @@ public Map<String, Object> rejectBuyer(
     }
     notificationService.notify(user.getEmail(), "BUYER_VERIFICATION", "Account Rejected",
         "Your buyer account application was not approved.", "AppUser", user.getId());
+    emailService.sendBuyerRejected(user.getEmail(), user.getFullName());
     auditLogService.record("BUYER_REJECTED", admin.role(), admin.fullName(), admin.email(),
         "AppUser", user.getId(), email.trim());
     appUserRepository.delete(user);

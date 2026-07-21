@@ -11,9 +11,11 @@ import java.util.UUID;
 public class StubMomoDisbursementService implements MomoDisbursementService {
 
     private final WorkerPayRecordRepository recordRepo;
+    private final EmailService emailService;
 
-    public StubMomoDisbursementService(WorkerPayRecordRepository recordRepo) {
+    public StubMomoDisbursementService(WorkerPayRecordRepository recordRepo, EmailService emailService) {
         this.recordRepo = recordRepo;
+        this.emailService = emailService;
     }
 
     @Override
@@ -31,5 +33,7 @@ public class StubMomoDisbursementService implements MomoDisbursementService {
         record.setMomoTransactionRef("SIMULATED-" + UUID.randomUUID().toString().toUpperCase().replace("-", "").substring(0, 12));
         record.setDisbursedAt(LocalDateTime.now());
         recordRepo.save(record);
+
+        emailService.sendPayDisbursed(record.getWorkerEmail(), record.getWorkerName(), record.getNetPay(), record.getMomoNumber());
     }
 }

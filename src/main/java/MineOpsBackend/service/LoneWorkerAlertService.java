@@ -36,7 +36,8 @@ public class LoneWorkerAlertService {
             if (session.isAlerted()) continue;
 
             List<AppUser> supervisors = userRepo
-                .findByRoleAndAssignedSiteIgnoreCase("supervisor", session.getSite());
+                .findByRoleInAndAssignedSiteIgnoreCase(
+                    List.of("supervisor", "safetyOfficer"), session.getSite());
 
             List<String> tokens = new java.util.ArrayList<>();
             for (AppUser sup : supervisors) {

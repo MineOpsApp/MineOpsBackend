@@ -44,6 +44,12 @@ public class WorkerMessage {
     @Column(name = "initiated_by", nullable = false)
     private String initiatedBy = "WORKER";
 
+    @Column(name = "replied_by_email")
+    private String repliedByEmail;
+
+    @Column(name = "replied_by_name")
+    private String repliedByName;
+
     @PrePersist
     void prePersist() {
         createdAt = LocalDateTime.now();
@@ -82,8 +88,12 @@ public class WorkerMessage {
     public String getRecipientEmail() { return recipientEmail; }
     public String getRecipientName() { return recipientName; }
     public String getInitiatedBy() { return initiatedBy; }
+    public String getRepliedByEmail() { return repliedByEmail; }
+    public String getRepliedByName() { return repliedByName; }
 
     public void setReply(String reply) { this.reply = reply; }
     public void setRepliedAt(LocalDateTime repliedAt) { this.repliedAt = repliedAt; }
     public void setReadAt(LocalDateTime readAt) { this.readAt = readAt; }
+    public void setRepliedByEmail(String repliedByEmail) { this.repliedByEmail = repliedByEmail; }
+    public void setRepliedByName(String repliedByName) { this.repliedByName = repliedByName; }
 }

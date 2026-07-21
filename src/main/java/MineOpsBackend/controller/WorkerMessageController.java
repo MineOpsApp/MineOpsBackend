@@ -241,6 +241,8 @@ public class WorkerMessageController {
 
         msg.setReply(reply.trim());
         msg.setRepliedAt(LocalDateTime.now());
+        msg.setRepliedByEmail(supervisor.getEmail());
+        msg.setRepliedByName(supervisor.getFullName());
         messageRepo.save(msg);
 
         String replyPreview = reply.length() > 80 ? reply.substring(0, 77) + "..." : reply;
@@ -299,6 +301,8 @@ public class WorkerMessageController {
         map.put("recipientEmail", m.getRecipientEmail());
         map.put("recipientName", m.getRecipientName());
         map.put("initiatedBy", m.getInitiatedBy());
+        map.put("repliedByEmail", m.getRepliedByEmail());
+        map.put("repliedByName", m.getRepliedByName());
         return map;
     }
 }

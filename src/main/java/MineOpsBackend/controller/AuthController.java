@@ -3,9 +3,12 @@ package MineOpsBackend.controller;
 import MineOpsBackend.dto.LoginRequest;
 import MineOpsBackend.dto.RegisterRequest;
 import MineOpsBackend.model.AppUser;
+import MineOpsBackend.model.PasswordResetOtp;
 import MineOpsBackend.model.RefreshToken;
 import MineOpsBackend.repository.AppUserRepository;
+import MineOpsBackend.repository.PasswordResetOtpRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.EmailService;
 import MineOpsBackend.service.JwtService;
 import MineOpsBackend.service.RefreshTokenService;
 import jakarta.validation.Valid;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,20 +36,30 @@ import java.util.stream.Collectors;
 public class AuthController {
 
     private static final Set<String> ALLOWED_ROLES = Set.of("worker", "guest", "buyer");
+    private static final SecureRandom OTP_RANDOM = new SecureRandom();
+    private static final int OTP_VALIDITY_MINUTES = 15;
+    private static final int OTP_RESEND_COOLDOWN_SECONDS = 60;
+    private static final int OTP_MAX_REQUESTS_PER_DAY = 5;
 
     private final AppUserRepository appUserRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+    private final EmailService emailService;
+    private final PasswordResetOtpRepository passwordResetOtpRepository;
 
     public AuthController(
         AppUserRepository appUserRepository,
         JwtService jwtService,
-        RefreshTokenService refreshTokenService
+        RefreshTokenService refreshTokenService,
+        EmailService emailService,
+        PasswordResetOtpRepository passwordResetOtpRepository
     ) {
         this.appUserRepository = appUserRepository;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
+        this.emailService = emailService;
+        this.passwordResetOtpRepository = passwordResetOtpRepository;
     }
 
     @PostMapping("/api/auth/register")
@@ -76,6 +90,7 @@ public class AuthController {
             if (request.goldbodLicenseNumber() != null && !request.goldbodLicenseNumber().isBlank())
                 buyer.setGoldbodLicenseNumber(request.goldbodLicenseNumber().trim());
             appUserRepository.save(buyer);
+            emailService.sendRegistrationPending(buyer.getEmail(), buyer.getFullName(), "buyer");
             return ResponseEntity.ok(Map.of("pending", true));
         }
 
@@ -99,6 +114,7 @@ public class AuthController {
         if ("worker".equals(request.role())) {
             user.setPending(true);
             appUserRepository.save(user);
+            emailService.sendRegistrationPending(user.getEmail(), user.getFullName(), "worker");
             return ResponseEntity.ok(Map.of("pending", true));
         }
 
@@ -171,6 +187,87 @@ public class AuthController {
         } catch (ResponseStatusException e) {
             return ResponseEntity.status(401).body(Map.of("error", "INVALID_REFRESH_TOKEN", "message", e.getReason() != null ? e.getReason() : "Token invalid or expired"));
         }
+    }
+
+    @PostMapping("/api/auth/forgot-password")
+    public Map<String, Object> forgotPassword(@RequestBody Map<String, String> body) {
+        String email = body == null ? null : body.get("email");
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+        }
+        String normalizedEmail = email.trim().toLowerCase();
+
+        // The response is the same generic message whether or not the account exists, so this
+        // endpoint can't be used to enumerate registered emails. Rate limiting only kicks in for
+        // emails that do have an account (it's checked inside this block), which means a 429 does
+        // leak "this email exists" after repeated attempts — an accepted tradeoff to stop someone
+        // from burning through the SMTP provider's daily send quota with one repeated address.
+        AppUser user = appUserRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null);
+        if (user != null) {
+            LocalDateTime now = LocalDateTime.now();
+
+            passwordResetOtpRepository.findTopByEmailIgnoreCaseOrderByCreatedAtDesc(normalizedEmail)
+                .filter(last -> last.getCreatedAt().isAfter(now.minusSeconds(OTP_RESEND_COOLDOWN_SECONDS)))
+                .ifPresent(last -> {
+                    throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                        "Please wait a minute before requesting another code");
+                });
+
+            long requestsToday = passwordResetOtpRepository.countByEmailIgnoreCaseAndCreatedAtAfter(
+                normalizedEmail, now.minusHours(24));
+            if (requestsToday >= OTP_MAX_REQUESTS_PER_DAY) {
+                throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many reset requests for this email today. Try again tomorrow or contact your supervisor.");
+            }
+
+            passwordResetOtpRepository.findByEmailIgnoreCaseAndUsedFalse(normalizedEmail)
+                .forEach(old -> { old.setUsed(true); passwordResetOtpRepository.save(old); });
+
+            String otp = String.format("%06d", OTP_RANDOM.nextInt(1_000_000));
+            PasswordResetOtp record = new PasswordResetOtp(normalizedEmail, otp, now.plusMinutes(OTP_VALIDITY_MINUTES));
+            passwordResetOtpRepository.save(record);
+            emailService.sendPasswordResetOtp(user.getEmail(), user.getFullName(), otp, OTP_VALIDITY_MINUTES);
+        }
+
+        return Map.of("success", true, "message", "If an account exists for that email, a reset code has been sent.");
+    }
+
+    @PostMapping("/api/auth/reset-password")
+    public Map<String, Object> resetPasswordWithOtp(@RequestBody Map<String, String> body) {
+        String email = body == null ? null : body.get("email");
+        String otp = body == null ? null : body.get("otp");
+        String newPassword = body == null ? null : body.get("newPassword");
+
+        if (email == null || email.isBlank() || otp == null || otp.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email and code are required");
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be at least 6 characters");
+        }
+        String normalizedEmail = email.trim().toLowerCase();
+
+        PasswordResetOtp record = passwordResetOtpRepository
+            .findTopByEmailIgnoreCaseAndOtpCodeAndUsedFalseOrderByCreatedAtDesc(normalizedEmail, otp.trim())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired code"));
+
+        if (record.isExpired()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired code");
+        }
+
+        AppUser user = appUserRepository.findByEmailIgnoreCase(normalizedEmail)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired code"));
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setFailedLoginAttempts(0);
+        user.setLockedUntil(null);
+        user.setMustChangePassword(false);
+        appUserRepository.save(user);
+
+        record.setUsed(true);
+        passwordResetOtpRepository.save(record);
+        refreshTokenService.revokeAll(user.getId());
+
+        return Map.of("success", true);
     }
 
     @PostMapping("/api/auth/logout")
