@@ -207,6 +207,50 @@ public class DangerZoneController {
         return saved;
     }
 
+    @PostMapping("/api/danger-zones/{id}/entry-alert")
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public Map<String, Object> reportZoneEntry(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        DangerZone zone = findAndCheckSite(id, user);
+
+        try {
+            String notifTitle = "⚠️ Worker entered danger zone";
+            String notifBody = user.fullName() + " has entered \"" + zone.getZoneName() + "\" (" + zone.getRiskLevel() + " risk) at " + zone.getSite() + ".";
+
+            List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+                .stream()
+                .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
+                .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
+                .collect(Collectors.toList());
+
+            List<String> tokens = recipients.stream()
+                .map(AppUser::getPushToken)
+                .filter(t -> t != null && !t.isBlank())
+                .collect(Collectors.toList());
+            pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "zone-entry");
+
+            for (AppUser recipient : recipients) {
+                notificationService.notify(recipient.getEmail(), "ZONE_ENTRY", notifTitle, notifBody, "DangerZone", zone.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Push notification failed for zone entry alert: {}", e.getMessage());
+        }
+
+        auditLogService.record(
+            "ZONE_ENTRY_ALERT",
+            user.role(),
+            user.fullName(),
+            user.email(),
+            "DangerZone",
+            zone.getId(),
+            user.fullName() + " entered " + zone.getZoneName()
+        );
+
+        return Map.of("acknowledged", true);
+    }
+
     @GetMapping("/api/danger-zones/{id}/detail")
     @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public Map<String, Object> getZoneDetail(
@@ -239,12 +283,6 @@ public class DangerZoneController {
     private DangerZone findAndCheckSite(Long id, AuthenticatedUser user) {
         DangerZone zone = dangerZoneRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Danger zone not found"));
-        System.out.println("[ZONE-CHECK] zoneId=" + id
-            + " zone.site='" + zone.getSite() + "'"
-            + " user.assignedSite='" + user.assignedSite() + "'"
-            + " user.email=" + user.email()
-            + " user.role=" + user.role()
-            + " equalsIgnoreCase=" + (zone.getSite() != null && zone.getSite().equalsIgnoreCase(user.assignedSite())));
         if (!zone.getSite().equalsIgnoreCase(user.assignedSite())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Danger zone belongs to a different site");
         }
