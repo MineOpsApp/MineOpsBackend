@@ -9,6 +9,8 @@ import MineOpsBackend.repository.CertificationHistoryRepository;
 import MineOpsBackend.repository.CertificationRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -26,6 +28,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -35,6 +38,9 @@ public class CertificationController {
     private final CertificationHistoryRepository historyRepo;
     private final AppUserRepository userRepo;
     private final AuditLogService auditLogService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public CertificationController(
         CertificationRepository certRepo,
@@ -68,6 +74,10 @@ public class CertificationController {
                 .filter(c -> c.getCertificationName().toLowerCase().contains(t))
                 .collect(Collectors.toList());
         }
+        // Photos are fetched on demand via /api/certifications/{id}/photo — list views
+        // only need the hasPhoto flag, not the (potentially large) base64 payload.
+        // Detach first so nulling photoData here can never be flushed back to the DB.
+        certs.forEach(c -> { entityManager.detach(c); c.setPhotoData(null); });
         return certs;
     }
 
@@ -75,7 +85,28 @@ public class CertificationController {
     @GetMapping("/api/certifications/mine")
     @PreAuthorize("hasAuthority('ROLE_WORKER')")
     public List<Certification> getMyCertifications(@AuthenticationPrincipal AuthenticatedUser user) {
-        return certRepo.findByWorkerEmailIgnoreCaseOrderByExpiryDateAsc(user.email());
+        List<Certification> certs = certRepo.findByWorkerEmailIgnoreCaseOrderByExpiryDateAsc(user.email());
+        certs.forEach(c -> { entityManager.detach(c); c.setPhotoData(null); });
+        return certs;
+    }
+
+    // Fetch the (potentially large) base64 photo for one certification on demand —
+    // never returned in bulk from the list endpoints above.
+    @GetMapping("/api/certifications/{id}/photo")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER','ROLE_WORKER')")
+    public Map<String, String> getCertPhoto(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        Certification cert = certRepo.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Certification not found"));
+
+        if ("worker".equals(user.role()) &&
+                !cert.getWorkerEmail().equalsIgnoreCase(user.email())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+
+        return Map.of("photoData", cert.getPhotoData() != null ? cert.getPhotoData() : "");
     }
 
     // Supervisor: renewal history for a specific certification
@@ -126,6 +157,7 @@ public class CertificationController {
             issueDate, expiryDate,
             req.notes(), user.fullName()
         );
+        cert.setPhotoData(req.photoData());
         Certification saved = certRepo.save(cert);
 
         auditLogService.record(
@@ -175,6 +207,9 @@ public class CertificationController {
         cert.setIssueDate(newIssue);
         cert.setExpiryDate(newExpiry);
         cert.setNotes(req.notes());
+        if (req.photoData() != null) {
+            cert.setPhotoData(req.photoData());
+        }
         cert.setUpdatedAt(LocalDateTime.now());
         Certification saved = certRepo.save(cert);
 

@@ -27,6 +27,7 @@ public class Certification {
     @Column(nullable = false) private LocalDate issueDate;
     @Column(nullable = false) private LocalDate expiryDate;
     private String notes;
+    @Column(columnDefinition = "TEXT") private String photoData;
     @Column(nullable = false) private LocalDateTime createdAt;
     @Column(nullable = false) private LocalDateTime updatedAt;
     @Column(nullable = false) private String createdBy;
@@ -67,6 +68,12 @@ public class Certification {
         return ChronoUnit.DAYS.between(LocalDate.now(), expiryDate);
     }
 
+    // Computed — not stored in DB. Lets list views show a "has photo" indicator
+    // without pulling the (potentially large) base64 photoData into every response.
+    public boolean isHasPhoto() {
+        return photoData != null && !photoData.isBlank();
+    }
+
     public Long getId() { return id; }
     public Long getWorkerId() { return workerId; }
     public String getWorkerName() { return workerName; }
@@ -82,6 +89,8 @@ public class Certification {
     public void setExpiryDate(LocalDate v) { this.expiryDate = v; }
     public String getNotes() { return notes; }
     public void setNotes(String v) { this.notes = v; }
+    public String getPhotoData() { return photoData; }
+    public void setPhotoData(String v) { this.photoData = v; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime v) { this.updatedAt = v; }

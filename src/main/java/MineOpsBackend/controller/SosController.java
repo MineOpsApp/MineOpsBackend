@@ -68,6 +68,10 @@ public class SosController {
         if (request != null && request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
             alert.setClientRequestId(request.clientRequestId());
         }
+        if (request != null) {
+            alert.setLatitude(request.latitude());
+            alert.setLongitude(request.longitude());
+        }
         SosAlert saved = sosAlertRepository.save(alert);
 
         auditLogService.record(

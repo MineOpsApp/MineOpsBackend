@@ -9,5 +9,6 @@ public record CertificationRequest(
     @NotBlank String issuingAuthority,
     @NotNull String issueDate,   // YYYY-MM-DD
     @NotNull String expiryDate,  // YYYY-MM-DD
-    String notes
+    String notes,
+    String photoData             // base64-encoded image, optional
 ) {}
