@@ -91,6 +91,9 @@ public class DrillController {
             case "blasting" -> {
                 if (!Boolean.TRUE.equals(op.getStepDrillingComplete()))
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Complete drilling step first");
+                if (op.getBlastApprovedBy() == null)
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "A supervisor or safety officer must approve this blast before it can be signed off");
                 op.setStepBlastingComplete(true);
                 op.setStepBlastingAt(now);
                 op.setStepBlastingNotes(request.notes());
@@ -114,6 +117,45 @@ public class DrillController {
 
         if ("drilling".equals(request.step()) || "blasting".equals(request.step())) {
             notifySafetyStaff(saved, request.step(), user.assignedSite());
+        }
+
+        return saved;
+    }
+
+    @PostMapping("/api/drill-operations/{id}/approve-blast")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public DrillOperation approveBlast(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @PathVariable Long id
+    ) {
+        DrillOperation op = drillOperationRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Drill operation not found"));
+
+        if (!op.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Drill operation belongs to a different site");
+        if (!Boolean.TRUE.equals(op.getStepDrillingComplete()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Worker hasn't completed the drilling step yet");
+        if (Boolean.TRUE.equals(op.getStepBlastingComplete()))
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Blasting step is already signed off");
+        if (op.getBlastApprovedBy() != null)
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This blast is already approved");
+
+        op.setBlastApprovedBy(user.email());
+        op.setBlastApprovedByName(user.fullName());
+        op.setBlastApprovedAt(LocalDateTime.now());
+        DrillOperation saved = drillOperationRepository.save(op);
+
+        auditLogService.record("DRILL_BLAST_APPROVED", user.role(), user.fullName(), user.email(),
+            "DrillOperation", id, op.getZone() + " — worker=" + op.getWorkerName());
+
+        String token = null;
+        java.util.Optional<AppUser> worker = appUserRepository.findByEmailIgnoreCase(op.getWorkerEmail());
+        if (worker.isPresent()) token = worker.get().getPushToken();
+        if (token != null && !token.isBlank()) {
+            pushNotificationService.sendToToken(token,
+                "Blast Approved — " + op.getZone(),
+                user.fullName() + " approved your blast. You may now sign off the blasting step.",
+                "default");
         }
 
         return saved;

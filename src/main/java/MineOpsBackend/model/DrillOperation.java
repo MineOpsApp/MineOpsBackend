@@ -42,6 +42,10 @@ public class DrillOperation {
     private LocalDateTime stepCleanupAt;
     private String stepCleanupNotes;
 
+    private String blastApprovedBy;
+    private String blastApprovedByName;
+    private LocalDateTime blastApprovedAt;
+
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
 
@@ -101,6 +105,12 @@ public class DrillOperation {
     public void setStepCleanupAt(LocalDateTime v) { this.stepCleanupAt = v; }
     public String getStepCleanupNotes() { return stepCleanupNotes; }
     public void setStepCleanupNotes(String v) { this.stepCleanupNotes = v; }
+    public String getBlastApprovedBy() { return blastApprovedBy; }
+    public void setBlastApprovedBy(String v) { this.blastApprovedBy = v; }
+    public String getBlastApprovedByName() { return blastApprovedByName; }
+    public void setBlastApprovedByName(String v) { this.blastApprovedByName = v; }
+    public LocalDateTime getBlastApprovedAt() { return blastApprovedAt; }
+    public void setBlastApprovedAt(LocalDateTime v) { this.blastApprovedAt = v; }
     public LocalDateTime getStartedAt() { return startedAt; }
     public void setStartedAt(LocalDateTime v) { this.startedAt = v; }
     public LocalDateTime getCompletedAt() { return completedAt; }

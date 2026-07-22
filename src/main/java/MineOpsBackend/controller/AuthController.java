@@ -118,6 +118,16 @@ public class AuthController {
             return ResponseEntity.ok(Map.of("pending", true));
         }
 
+        // Self-registered guests need a supervisor's sign-off, same as workers — this is the
+        // sign-up form path, distinct from the QR/access-code redemption flow, which is already
+        // pre-authorized because a supervisor generated that code in the first place.
+        if ("guest".equals(request.role())) {
+            user.setPending(true);
+            appUserRepository.save(user);
+            emailService.sendRegistrationPending(user.getEmail(), user.getFullName(), "guest");
+            return ResponseEntity.ok(Map.of("pending", true));
+        }
+
         return ResponseEntity.ok(authResponse(user, request.deviceName(), request.platform()));
     }
 

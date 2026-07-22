@@ -280,6 +280,66 @@ public Map<String, Object> rejectWorker(
     return Map.of("email", email.trim(), "rejected", true);
 }
 
+@GetMapping("/api/admin/guests/pending")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public List<Map<String, Object>> getPendingGuests(@AuthenticationPrincipal AuthenticatedUser admin) {
+    return appUserRepository.findByRoleAndPendingAndAssignedSiteIgnoreCase("guest", true, admin.assignedSite())
+        .stream()
+        .map(u -> {
+            Map<String, Object> map = new java.util.LinkedHashMap<>();
+            map.put("id", u.getId());
+            map.put("fullName", u.getFullName());
+            map.put("email", u.getEmail());
+            map.put("assignedSite", u.getAssignedSite());
+            map.put("guestSubRole", u.getGuestSubRole());
+            map.put("createdAt", u.getCreatedAt() != null ? u.getCreatedAt().toString() : null);
+            return map;
+        })
+        .collect(java.util.stream.Collectors.toList());
+}
+
+@PostMapping("/api/admin/guests/approve")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public Map<String, Object> approveGuest(
+    @AuthenticationPrincipal AuthenticatedUser admin,
+    @RequestBody Map<String, String> body
+) {
+    String email = body.get("email");
+    if (email == null || email.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email required");
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found"));
+    if (user.getAssignedSite() != null && !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest belongs to a different site");
+    user.setPending(false);
+    appUserRepository.save(user);
+    emailService.sendRegistrationApproved(user.getEmail(), user.getFullName());
+    auditLogService.record("GUEST_APPROVED", admin.role(), admin.fullName(), admin.email(),
+        "AppUser", user.getId(), email.trim());
+    return Map.of("email", user.getEmail(), "fullName", user.getFullName(), "approved", true);
+}
+
+@PostMapping("/api/admin/guests/reject")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public Map<String, Object> rejectGuest(
+    @AuthenticationPrincipal AuthenticatedUser admin,
+    @RequestBody Map<String, String> body
+) {
+    String email = body.get("email");
+    if (email == null || email.isBlank()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email required");
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found"));
+    if (user.getAssignedSite() != null && !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest belongs to a different site");
+    if (!Boolean.TRUE.equals(user.getPending())) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Account is not pending approval");
+    }
+    emailService.sendRegistrationRejected(user.getEmail(), user.getFullName());
+    auditLogService.record("GUEST_REJECTED", admin.role(), admin.fullName(), admin.email(),
+        "AppUser", user.getId(), email.trim());
+    appUserRepository.delete(user);
+    return Map.of("email", email.trim(), "rejected", true);
+}
+
 @GetMapping("/api/admin/buyers/pending")
 @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
 public List<Map<String, Object>> getPendingBuyers() {

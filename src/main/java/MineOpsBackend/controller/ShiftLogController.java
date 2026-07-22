@@ -72,6 +72,20 @@ public class ShiftLogController {
                 + limit.stripTrailingZeros().toPlainString() + " " + request.unit() + ")");
         }
 
+        if (request.shiftDate() != null && !request.shiftDate().isBlank()) {
+            java.time.LocalDate parsedShiftDate;
+            try {
+                parsedShiftDate = java.time.LocalDate.parse(request.shiftDate());
+            } catch (java.time.format.DateTimeParseException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "shiftDate must be ISO date format (yyyy-MM-dd)");
+            }
+            if (parsedShiftDate.isAfter(java.time.LocalDate.now())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Shift date cannot be in the future");
+            }
+        }
+
         if (request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
             var existing = shiftLogRepository.findByClientRequestId(request.clientRequestId());
             if (existing.isPresent()) return existing.get();
