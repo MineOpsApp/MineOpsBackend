@@ -1,5 +1,6 @@
 package MineOpsBackend.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,61 +13,112 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.List;
+import java.time.Instant;
+import java.util.Base64;
 import java.util.Map;
 
 /**
  * Sends transactional emails (registration status, password reset, pay disbursement, etc.) via
- * Brevo's HTTP API (https://api.brevo.com/v3/smtp/email) rather than direct SMTP. This is a
- * plain HTTPS POST, so Railway blocking outbound SMTP ports below its Pro plan is a non-issue.
+ * the Gmail API (https://gmail.googleapis.com) instead of SMTP or a third-party relay.
  *
- * The sender is a Brevo-verified non-Gmail address (mineops96@outlook.com), not the app's real
- * Gmail account — Gmail's own receiving servers silently drop mail claiming "From: @gmail.com"
- * unless it's genuinely sent through Google's own infra, since no third party can pass DKIM/SPF
- * alignment for a domain they don't own. A single verified sender on a non-Gmail address sidesteps
- * that, and — unlike Resend's free-tier default sender — Brevo lets a verified sender send to any
- * recipient, not just the account owner's own inbox.
+ * Why: Railway blocks outbound SMTP ports below its Pro plan, so direct SMTP was out. Every
+ * third-party relay we tried (Brevo, Resend) hit the same wall: a relay can't get DKIM/SPF
+ * alignment for a "From" domain it doesn't own (gmail.com, outlook.com, whatever), so receiving
+ * providers — especially Gmail — silently soft-bounce the mail. The Gmail API sidesteps both
+ * problems at once: it's a plain HTTPS call (no port block) that genuinely sends through the real
+ * mobilegroup96@gmail.com account via Google's own infrastructure, so it's authenticated by
+ * definition — no spoofing, no relay, no deliverability guesswork. It's also free (large daily
+ * quota, no Google Cloud billing account required) — unlike Firebase Extensions, which needed the
+ * paid Blaze plan.
+ *
+ * Auth: uses a long-lived OAuth2 refresh token (obtained once via Google's OAuth consent flow for
+ * the gmail.send scope) to mint short-lived access tokens on demand. The access token is cached
+ * in memory and refreshed ~5 minutes before it expires.
  *
  * All send methods swallow their own exceptions and log rather than throwing: a failed email
- * (bad API key, network blip) must never roll back or block the underlying business action
+ * (bad OAuth creds, network blip) must never roll back or block the underlying business action
  * (approving a worker, disbursing pay, resetting a password) that triggered it.
  *
  * Every public method is @Async: callers (AuthController, AdminController, etc.) must not block
- * the HTTP response on the Brevo call — the caller's request returns immediately and the send
+ * the HTTP response on the Gmail API call — the caller's request returns immediately and the send
  * happens on a background thread. Requires @EnableAsync on the main application class.
  *
- * Configure mineops.brevo.api-key (BREVO_API_KEY env var) — free at brevo.com, no card required.
+ * Configure mineops.gmail.client-id / client-secret / refresh-token (GMAIL_CLIENT_ID /
+ * GMAIL_CLIENT_SECRET / GMAIL_REFRESH_TOKEN env vars) — see Google Cloud Console OAuth setup.
  * With mineops.mail.enabled=false, sends are skipped and logged instead — useful for local dev
- * without a Brevo key on hand.
+ * without Gmail API credentials on hand.
  */
 @Service
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
-    private static final URI BREVO_ENDPOINT = URI.create("https://api.brevo.com/v3/smtp/email");
+    private static final URI TOKEN_ENDPOINT = URI.create("https://oauth2.googleapis.com/token");
+    private static final URI SEND_ENDPOINT = URI.create("https://gmail.googleapis.com/gmail/v1/users/me/messages/send");
 
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .build();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final String apiKey;
+    private final String clientId;
+    private final String clientSecret;
+    private final String refreshToken;
     private final String senderEmail;
     private final String senderName;
     private final boolean enabled;
 
+    // Cached access token — Gmail API access tokens are short-lived (~1hr); avoid re-minting one
+    // on every single send.
+    private volatile String cachedAccessToken;
+    private volatile Instant cachedAccessTokenExpiry = Instant.EPOCH;
+
     public EmailService(
-        @Value("${mineops.brevo.api-key:}") String apiKey,
-        @Value("${mineops.brevo.sender-email:mineops96@outlook.com}") String senderEmail,
-        @Value("${mineops.brevo.sender-name:MineOps}") String senderName,
+        @Value("${mineops.gmail.client-id:}") String clientId,
+        @Value("${mineops.gmail.client-secret:}") String clientSecret,
+        @Value("${mineops.gmail.refresh-token:}") String refreshToken,
+        @Value("${mineops.gmail.sender-email:mobilegroup96@gmail.com}") String senderEmail,
+        @Value("${mineops.gmail.sender-name:MineOps}") String senderName,
         @Value("${mineops.mail.enabled:true}") boolean enabled
     ) {
-        this.apiKey = apiKey;
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+        this.refreshToken = refreshToken;
         this.senderEmail = senderEmail;
         this.senderName = senderName;
         this.enabled = enabled;
+    }
+
+    private synchronized String getAccessToken() throws Exception {
+        if (cachedAccessToken != null && Instant.now().isBefore(cachedAccessTokenExpiry.minusSeconds(300))) {
+            return cachedAccessToken;
+        }
+        String form = "grant_type=refresh_token"
+            + "&client_id=" + java.net.URLEncoder.encode(clientId, StandardCharsets.UTF_8)
+            + "&client_secret=" + java.net.URLEncoder.encode(clientSecret, StandardCharsets.UTF_8)
+            + "&refresh_token=" + java.net.URLEncoder.encode(refreshToken, StandardCharsets.UTF_8);
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(TOKEN_ENDPOINT)
+            .timeout(Duration.ofSeconds(10))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .POST(HttpRequest.BodyPublishers.ofString(form))
+            .build();
+
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IllegalStateException("Gmail token refresh failed: status=" + response.statusCode() + " body=" + response.body());
+        }
+        JsonNode json = objectMapper.readTree(response.body());
+        String accessToken = json.path("access_token").asText(null);
+        int expiresIn = json.path("expires_in").asInt(3600);
+        if (accessToken == null) {
+            throw new IllegalStateException("Gmail token refresh response missing access_token: " + response.body());
+        }
+        cachedAccessToken = accessToken;
+        cachedAccessTokenExpiry = Instant.now().plusSeconds(expiresIn);
+        return accessToken;
     }
 
     private void send(String toEmail, String subject, String htmlBody) {
@@ -78,36 +130,35 @@ public class EmailService {
             log.warn("[EMAIL skipped] no recipient address for subject={}", subject);
             return;
         }
-        if (apiKey == null || apiKey.isBlank()) {
-            log.warn("[EMAIL skipped] mineops.brevo.api-key not configured — to={} subject={}", toEmail, subject);
+        if (clientId.isBlank() || clientSecret.isBlank() || refreshToken.isBlank()) {
+            log.warn("[EMAIL skipped] Gmail API credentials not configured — to={} subject={}", toEmail, subject);
             return;
         }
         try {
-            Map<String, Object> sender = new HashMap<>();
-            sender.put("name", senderName);
-            sender.put("email", senderEmail);
+            String accessToken = getAccessToken();
 
-            Map<String, Object> recipient = new HashMap<>();
-            recipient.put("email", toEmail);
+            String mime = "From: " + senderName + " <" + senderEmail + ">\r\n"
+                + "To: " + toEmail + "\r\n"
+                + "Subject: " + subject + "\r\n"
+                + "MIME-Version: 1.0\r\n"
+                + "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+                + htmlBody;
+            String rawMessage = Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(mime.getBytes(StandardCharsets.UTF_8));
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("sender", sender);
-            body.put("to", List.of(recipient));
-            body.put("subject", subject);
-            body.put("htmlContent", htmlBody);
+            String requestBody = objectMapper.writeValueAsString(Map.of("raw", rawMessage));
 
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(BREVO_ENDPOINT)
+                .uri(SEND_ENDPOINT)
                 .timeout(Duration.ofSeconds(10))
-                .header("api-key", apiKey)
+                .header("Authorization", "Bearer " + accessToken)
                 .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
+                .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                 .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                log.info("[EMAIL sent via Brevo] to={} subject={}", toEmail, subject);
+                log.info("[EMAIL sent via Gmail API] to={} subject={}", toEmail, subject);
             } else {
                 log.error("[EMAIL FAILED] to={} subject={} status={} body={}", toEmail, subject, response.statusCode(), response.body());
             }
