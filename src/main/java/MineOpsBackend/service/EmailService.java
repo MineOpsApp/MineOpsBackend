@@ -19,31 +19,33 @@ import java.util.Map;
 
 /**
  * Sends transactional emails (registration status, password reset, pay disbursement, etc.) via
- * Resend's HTTP API (https://api.resend.com/emails) rather than direct SMTP. Two reasons:
- * Railway blocks outbound SMTP ports below its Pro plan (this is a plain HTTPS POST instead, so
- * that's a non-issue), and any "From" address at a real gmail.com/yahoo.com/etc mailbox gets
- * silently dropped by that provider's own strict DMARC policy when relayed by anyone else's
- * servers — no third party can pass DKIM/SPF alignment for a domain they don't own. Resend's
- * default sender (onboarding@resend.dev) sidesteps that: it's Resend's own authenticated domain,
- * works immediately with no card and no custom domain to verify.
+ * Brevo's HTTP API (https://api.brevo.com/v3/smtp/email) rather than direct SMTP. This is a
+ * plain HTTPS POST, so Railway blocking outbound SMTP ports below its Pro plan is a non-issue.
+ *
+ * The sender is a Brevo-verified non-Gmail address (mineops96@outlook.com), not the app's real
+ * Gmail account — Gmail's own receiving servers silently drop mail claiming "From: @gmail.com"
+ * unless it's genuinely sent through Google's own infra, since no third party can pass DKIM/SPF
+ * alignment for a domain they don't own. A single verified sender on a non-Gmail address sidesteps
+ * that, and — unlike Resend's free-tier default sender — Brevo lets a verified sender send to any
+ * recipient, not just the account owner's own inbox.
  *
  * All send methods swallow their own exceptions and log rather than throwing: a failed email
  * (bad API key, network blip) must never roll back or block the underlying business action
  * (approving a worker, disbursing pay, resetting a password) that triggered it.
  *
  * Every public method is @Async: callers (AuthController, AdminController, etc.) must not block
- * the HTTP response on the Resend call — the caller's request returns immediately and the send
+ * the HTTP response on the Brevo call — the caller's request returns immediately and the send
  * happens on a background thread. Requires @EnableAsync on the main application class.
  *
- * Configure mineops.resend.api-key (RESEND_API_KEY env var) — get one free at resend.com, no
- * card required. With mineops.mail.enabled=false, sends are skipped and logged instead — useful
- * for local dev without a Resend key on hand.
+ * Configure mineops.brevo.api-key (BREVO_API_KEY env var) — free at brevo.com, no card required.
+ * With mineops.mail.enabled=false, sends are skipped and logged instead — useful for local dev
+ * without a Brevo key on hand.
  */
 @Service
 public class EmailService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailService.class);
-    private static final URI RESEND_ENDPOINT = URI.create("https://api.resend.com/emails");
+    private static final URI BREVO_ENDPOINT = URI.create("https://api.brevo.com/v3/smtp/email");
 
     private final HttpClient httpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -51,16 +53,19 @@ public class EmailService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final String apiKey;
-    private final String fromAddress;
+    private final String senderEmail;
+    private final String senderName;
     private final boolean enabled;
 
     public EmailService(
-        @Value("${mineops.resend.api-key:}") String apiKey,
-        @Value("${mineops.resend.from-address:MineOps <onboarding@resend.dev>}") String fromAddress,
+        @Value("${mineops.brevo.api-key:}") String apiKey,
+        @Value("${mineops.brevo.sender-email:mineops96@outlook.com}") String senderEmail,
+        @Value("${mineops.brevo.sender-name:MineOps}") String senderName,
         @Value("${mineops.mail.enabled:true}") boolean enabled
     ) {
         this.apiKey = apiKey;
-        this.fromAddress = fromAddress;
+        this.senderEmail = senderEmail;
+        this.senderName = senderName;
         this.enabled = enabled;
     }
 
@@ -74,27 +79,35 @@ public class EmailService {
             return;
         }
         if (apiKey == null || apiKey.isBlank()) {
-            log.warn("[EMAIL skipped] mineops.resend.api-key not configured — to={} subject={}", toEmail, subject);
+            log.warn("[EMAIL skipped] mineops.brevo.api-key not configured — to={} subject={}", toEmail, subject);
             return;
         }
         try {
+            Map<String, Object> sender = new HashMap<>();
+            sender.put("name", senderName);
+            sender.put("email", senderEmail);
+
+            Map<String, Object> recipient = new HashMap<>();
+            recipient.put("email", toEmail);
+
             Map<String, Object> body = new HashMap<>();
-            body.put("from", fromAddress);
-            body.put("to", List.of(toEmail));
+            body.put("sender", sender);
+            body.put("to", List.of(recipient));
             body.put("subject", subject);
-            body.put("html", htmlBody);
+            body.put("htmlContent", htmlBody);
 
             HttpRequest request = HttpRequest.newBuilder()
-                .uri(RESEND_ENDPOINT)
+                .uri(BREVO_ENDPOINT)
                 .timeout(Duration.ofSeconds(10))
-                .header("Authorization", "Bearer " + apiKey)
+                .header("api-key", apiKey)
                 .header("Content-Type", "application/json")
+                .header("Accept", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
                 .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                log.info("[EMAIL sent via Resend] to={} subject={}", toEmail, subject);
+                log.info("[EMAIL sent via Brevo] to={} subject={}", toEmail, subject);
             } else {
                 log.error("[EMAIL FAILED] to={} subject={} status={} body={}", toEmail, subject, response.statusCode(), response.body());
             }
