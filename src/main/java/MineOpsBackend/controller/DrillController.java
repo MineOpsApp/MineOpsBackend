@@ -189,14 +189,24 @@ public class DrillController {
         @Valid @RequestBody BlastDecisionRequest request
     ) {
         DrillOperation op = drillOperationRepository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Drill operation not found"));
+            .orElseThrow(() -> {
+                log.warn("blast-decision failed: drill {} not found (requested by {})", id, user.email());
+                return new ResponseStatusException(HttpStatus.NOT_FOUND, "Drill operation not found");
+            });
 
-        if (!op.getSite().equalsIgnoreCase(user.assignedSite()))
+        if (!op.getSite().equalsIgnoreCase(user.assignedSite())) {
+            log.warn("blast-decision failed: site mismatch on drill {} — drill site='{}' user site='{}' user={}",
+                id, op.getSite(), user.assignedSite(), user.email());
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Drill operation belongs to a different site");
-        if (!Boolean.TRUE.equals(op.getStepDrillingComplete()))
+        }
+        if (!Boolean.TRUE.equals(op.getStepDrillingComplete())) {
+            log.warn("blast-decision failed: drilling step not complete on drill {} (user={})", id, user.email());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Worker hasn't completed the drilling step yet");
-        if (Boolean.TRUE.equals(op.getStepBlastingComplete()))
+        }
+        if (Boolean.TRUE.equals(op.getStepBlastingComplete())) {
+            log.warn("blast-decision failed: blasting already signed off on drill {} (user={})", id, user.email());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Blasting step is already signed off");
+        }
 
         op.setBlastApprovedBy(user.email());
         op.setBlastApprovedByName(user.fullName());
