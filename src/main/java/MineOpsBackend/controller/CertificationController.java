@@ -77,7 +77,7 @@ public class CertificationController {
         // Photos are fetched on demand via /api/certifications/{id}/photo — list views
         // only need the hasPhoto flag, not the (potentially large) base64 payload.
         // Detach first so nulling photoData here can never be flushed back to the DB.
-        certs.forEach(c -> { entityManager.detach(c); c.setPhotoData(null); });
+        certs.forEach(c -> { entityManager.detach(c); c.stripPhotoDataForList(); });
         return certs;
     }
 
@@ -86,7 +86,7 @@ public class CertificationController {
     @PreAuthorize("hasAuthority('ROLE_WORKER')")
     public List<Certification> getMyCertifications(@AuthenticationPrincipal AuthenticatedUser user) {
         List<Certification> certs = certRepo.findByWorkerEmailIgnoreCaseOrderByExpiryDateAsc(user.email());
-        certs.forEach(c -> { entityManager.detach(c); c.setPhotoData(null); });
+        certs.forEach(c -> { entityManager.detach(c); c.stripPhotoDataForList(); });
         return certs;
     }
 
@@ -101,9 +101,12 @@ public class CertificationController {
         Certification cert = certRepo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Certification not found"));
 
-        if ("worker".equals(user.role()) &&
-                !cert.getWorkerEmail().equalsIgnoreCase(user.email())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        if ("worker".equals(user.role())) {
+            if (!cert.getWorkerEmail().equalsIgnoreCase(user.email())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            }
+        } else if (!cert.getSite().equalsIgnoreCase(user.assignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Certification belongs to a different site");
         }
 
         return Map.of("photoData", cert.getPhotoData() != null ? cert.getPhotoData() : "");
@@ -119,10 +122,13 @@ public class CertificationController {
         Certification cert = certRepo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Certification not found"));
 
-        // Workers can only see their own history
-        if ("worker".equals(user.role()) &&
-                !cert.getWorkerEmail().equalsIgnoreCase(user.email())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        // Workers can only see their own history; supervisors/safety officers only their own site's
+        if ("worker".equals(user.role())) {
+            if (!cert.getWorkerEmail().equalsIgnoreCase(user.email())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+            }
+        } else if (!cert.getSite().equalsIgnoreCase(user.assignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Certification belongs to a different site");
         }
 
         return historyRepo.findByCertificationIdOrderByRenewedAtDesc(id);

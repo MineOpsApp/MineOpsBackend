@@ -19,12 +19,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 @RestController
 @RequestMapping("/api/admin/guest-codes")
@@ -33,6 +33,7 @@ public class GuestAccessCodeController {
     private final GuestAccessCodeRepository codeRepo;
     private final AppUserRepository userRepo;
     private final AuditLogService auditLogService;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     public GuestAccessCodeController(
         GuestAccessCodeRepository codeRepo,
@@ -130,7 +131,10 @@ public class GuestAccessCodeController {
 
     private String generateUniqueCode() {
         for (int i = 0; i < 20; i++) {
-            String candidate = String.format("%06d", ThreadLocalRandom.current().nextInt(1_000_000));
+            // SecureRandom, not ThreadLocalRandom: this code is a real access-granting credential
+            // (redeemable at /api/guest/redeem, now rate-limited but still worth generating
+            // unpredictably), not just a UI-facing random value.
+            String candidate = String.format("%06d", secureRandom.nextInt(1_000_000));
             if (codeRepo.findByCode(candidate).isEmpty()) return candidate;
         }
         throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not generate a unique code");

@@ -131,6 +131,7 @@ public List<Map<String, Object>> getGuests(@AuthenticationPrincipal Authenticate
     return appUserRepository.findByAssignedSiteIgnoreCase(admin.assignedSite())
         .stream()
         .filter(u -> "guest".equals(u.getRole()))
+        .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
         .map(u -> {
             Map<String, Object> map = new java.util.LinkedHashMap<>();
             map.put("id", u.getId());
@@ -218,6 +219,45 @@ public Map<String, Object> suspendUser(
         "email", user.getEmail(),
         "fullName", user.getFullName(),
         "active", user.getActive()
+    );
+}
+
+@PostMapping("/api/admin/users/delete")
+@PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+public Map<String, Object> deleteUser(
+    @AuthenticationPrincipal AuthenticatedUser admin,
+    @RequestBody Map<String, String> body
+) {
+    String email = body.get("email");
+    if (email == null || email.isBlank())
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
+    AppUser user = appUserRepository.findByEmailIgnoreCase(email.trim())
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account found with that email"));
+
+    if ("supervisor".equals(user.getRole()) || "safetyOfficer".equals(user.getRole())) {
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot delete supervisors or safety officers");
+    }
+    if (user.getAssignedSite() != null && !user.getAssignedSite().equalsIgnoreCase(admin.assignedSite()))
+        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User belongs to a different site");
+    if (user.getDeletedAt() != null)
+        throw new ResponseStatusException(HttpStatus.CONFLICT, "This account has already been deleted");
+
+    // Soft delete: keep the row (and its history — attendance, incidents, transactions, etc.
+    // all reference this email/id) but block login and hide the account from active rosters.
+    user.setActive(false);
+    user.setDeletedAt(LocalDateTime.now());
+    appUserRepository.save(user);
+    refreshTokenService.revokeAll(user.getId());
+
+    emailService.sendAccountDeleted(user.getEmail(), user.getFullName());
+
+    auditLogService.record("ACCOUNT_DELETED", admin.role(), admin.fullName(), admin.email(),
+        "AppUser", user.getId(), email.trim());
+
+    return Map.of(
+        "email", user.getEmail(),
+        "fullName", user.getFullName(),
+        "deleted", true
     );
 }
 

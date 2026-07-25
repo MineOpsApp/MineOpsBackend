@@ -119,12 +119,13 @@ public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal Authenticat
 
         // Notify all workers on the same site
         try {
-            String notifTitle = "📢 New Notice — " + user.assignedSite();
+            String notifTitle = "New Notice — " + user.assignedSite();
             String notifBody = saved.getTitle() + ": " + saved.getMessage();
 
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> "worker".equals(u.getRole()) || "guest".equals(u.getRole()))
+                .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .collect(Collectors.toList());
 
             List<String> tokens = recipients.stream()

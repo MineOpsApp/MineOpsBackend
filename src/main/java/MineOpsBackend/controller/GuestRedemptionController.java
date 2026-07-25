@@ -8,16 +8,20 @@ import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.GuestAccessCodeRepository;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.JwtService;
+import MineOpsBackend.service.RateLimitService;
 import MineOpsBackend.service.RefreshTokenService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,11 +30,19 @@ import java.util.UUID;
 @RestController
 public class GuestRedemptionController {
 
+    // A 6-digit code has only 1,000,000 possible values — without this, it's brute-forceable in
+    // minutes. This caps redemption attempts per client IP well below what's needed for legitimate
+    // use (a guest mistyping a code a few times) while making brute-forcing the whole code space
+    // impractical.
+    private static final int MAX_ATTEMPTS_PER_WINDOW = 8;
+    private static final Duration RATE_LIMIT_WINDOW = Duration.ofMinutes(15);
+
     private final GuestAccessCodeRepository codeRepo;
     private final AppUserRepository userRepo;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final AuditLogService auditLogService;
+    private final RateLimitService rateLimitService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public GuestRedemptionController(
@@ -38,18 +50,29 @@ public class GuestRedemptionController {
         AppUserRepository userRepo,
         JwtService jwtService,
         RefreshTokenService refreshTokenService,
-        AuditLogService auditLogService
+        AuditLogService auditLogService,
+        RateLimitService rateLimitService
     ) {
         this.codeRepo = codeRepo;
         this.userRepo = userRepo;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.auditLogService = auditLogService;
+        this.rateLimitService = rateLimitService;
     }
 
     @PostMapping("/api/guest/redeem")
-    public ResponseEntity<Map<String, Object>> redeem(@Valid @RequestBody RedeemGuestCodeRequest req) {
-        GuestAccessCode code = codeRepo.findByCode(req.code().trim())
+    @Transactional
+    public ResponseEntity<Map<String, Object>> redeem(@Valid @RequestBody RedeemGuestCodeRequest req, HttpServletRequest httpRequest) {
+        String ip = rateLimitService.clientIp(httpRequest);
+        if (!rateLimitService.tryAcquire("guest-redeem:" + ip, MAX_ATTEMPTS_PER_WINDOW, RATE_LIMIT_WINDOW)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many attempts. Please wait a while before trying again.");
+        }
+
+        // Pessimistic-write lock, held for the rest of this @Transactional method: without it, two
+        // requests redeeming the same code at the same instant can both pass the maxRedemptions
+        // check below before either commits its increment, letting the code be over-redeemed.
+        GuestAccessCode code = codeRepo.findByCodeForUpdate(req.code().trim())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Code not found"));
 
         if (!Boolean.TRUE.equals(code.getActive()))

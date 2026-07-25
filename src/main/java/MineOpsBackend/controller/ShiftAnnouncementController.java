@@ -64,14 +64,14 @@ public class ShiftAnnouncementController {
 
         List<String> workerTokens = new java.util.ArrayList<>();
         for (AppUser u : userRepo.findByAssignedSiteIgnoreCaseAndPendingFalseOrderByFullNameAsc(poster.getAssignedSite())) {
-            if ("worker".equals(u.getRole())) {
+            if ("worker".equals(u.getRole()) && u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive())) {
                 String token = u.getPushToken();
                 if (token != null && !token.isBlank()) workerTokens.add(token);
             }
         }
         if (!workerTokens.isEmpty()) {
             pushService.sendToTokens(workerTokens,
-                "📢 " + poster.getFullName(),
+                poster.getFullName(),
                 content.length() > 90 ? content.substring(0, 87) + "..." : content,
                 "default");
         }

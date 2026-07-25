@@ -57,6 +57,7 @@ public class CommunityDirectoryController {
     @PreAuthorize("hasAnyAuthority('ROLE_WORKER', 'ROLE_SUPERVISOR', 'ROLE_SAFETY_OFFICER', 'ROLE_BUYER')")
     public List<Map<String, Object>> getVerifiedBuyers() {
         return userRepo.findByRoleAndBuyerVerificationStatus("buyer", "VERIFIED").stream()
+                .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .map(this::toBuyerProfile)
                 .collect(Collectors.toList());
     }

@@ -121,6 +121,7 @@ public class EmergencyContactController {
             .stream()
             .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
             .filter(u -> List.of("worker", "supervisor", "safetyOfficer").contains(u.getRole()))
+            .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
             .map(u -> {
                 Map<String, Object> entry = new LinkedHashMap<>();
                 entry.put("id", u.getId());

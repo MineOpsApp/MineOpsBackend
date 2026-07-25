@@ -44,6 +44,9 @@ public class SiteAccessController {
         AppUser user = appUserRepository.findByEmailIgnoreCase(principal.email()).orElseThrow();
         String currentSite = user.getAssignedSite();
         String homeSite = user.getHomeSite() != null ? user.getHomeSite() : currentSite;
+        if (homeSite == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No site assigned to your account");
+        }
 
         List<SiteEntry> result = new ArrayList<>();
         // home site first
@@ -143,6 +146,12 @@ public class SiteAccessController {
                              @PathVariable Long id) {
         SupervisorSiteAccess grant = siteAccessRepository.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Grant not found"));
+
+        // Mirrors grantAccess: a supervisor can only manage grants for the site they're currently at.
+        if (!grant.getSite().equalsIgnoreCase(principal.assignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "You can only revoke access grants for your current site: " + principal.assignedSite());
+        }
 
         AppUser target = appUserRepository.findByEmailIgnoreCase(grant.getSupervisorEmail())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Supervisor not found"));

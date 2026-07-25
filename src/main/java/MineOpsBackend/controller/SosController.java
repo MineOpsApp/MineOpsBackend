@@ -61,7 +61,11 @@ public class SosController {
 
         if (request != null && request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
             var existing = sosAlertRepository.findByClientRequestId(request.clientRequestId());
-            if (existing.isPresent()) return existing.get();
+            // Only replay for the same person who raised it — clientRequestId is client-generated,
+            // so a guessed/reused id must not let one user fetch another user's SOS alert record.
+            if (existing.isPresent() && existing.get().getActorEmail().equalsIgnoreCase(user.email())) {
+                return existing.get();
+            }
         }
 
         SosAlert alert = new SosAlert(user.role(), site, message, user.fullName(), user.email());
@@ -86,7 +90,7 @@ public class SosController {
 
         // Notify everyone on the same site
         try {
-            String notifTitle = "🚨 SOS ALERT — " + site;
+            String notifTitle = "SOS ALERT — " + site;
             String notifBody = user.fullName() + " has triggered an emergency alert. Respond immediately.";
 
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(site)

@@ -23,6 +23,6 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     List<AppUser> findByRoleAndPending(String role, boolean pending);
     List<AppUser> findByRoleAndBuyerVerificationStatus(String role, String buyerVerificationStatus);
 
-    @Query("SELECT u FROM AppUser u WHERE u.assignedSite = :site AND u.role != 'guest' AND (LOWER(u.fullName) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(u.email) LIKE LOWER(CONCAT('%',:q,'%'))) ORDER BY u.fullName ASC")
+    @Query("SELECT u FROM AppUser u WHERE u.assignedSite = :site AND u.role != 'guest' AND u.deletedAt IS NULL AND (u.active IS NULL OR u.active = true) AND (LOWER(u.fullName) LIKE LOWER(CONCAT('%',:q,'%')) OR LOWER(u.email) LIKE LOWER(CONCAT('%',:q,'%'))) ORDER BY u.fullName ASC")
     List<AppUser> searchBySite(@Param("site") String site, @Param("q") String q, Pageable pageable);
 }

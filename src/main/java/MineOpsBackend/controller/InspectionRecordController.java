@@ -3,6 +3,7 @@ package MineOpsBackend.controller;
 import MineOpsBackend.model.InspectionRecord;
 import MineOpsBackend.repository.InspectionRecordRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,9 +20,11 @@ import java.util.Map;
 public class InspectionRecordController {
 
     private final InspectionRecordRepository repo;
+    private final AuditLogService auditLogService;
 
-    public InspectionRecordController(InspectionRecordRepository repo) {
+    public InspectionRecordController(InspectionRecordRepository repo, AuditLogService auditLogService) {
         this.repo = repo;
+        this.auditLogService = auditLogService;
     }
 
     @PostMapping
@@ -30,15 +33,27 @@ public class InspectionRecordController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @RequestBody Map<String, Object> body
     ) {
+        String site = getString(body, "site");
+        String inspectionType = getString(body, "inspectionType");
+        if (site == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "site is required");
+        }
+        if (inspectionType == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "inspectionType is required");
+        }
+
         InspectionRecord r = new InspectionRecord();
         r.setInspectorUserId(user.id());
-        r.setSite(getString(body, "site"));
-        r.setInspectionType(getString(body, "inspectionType"));
+        r.setSite(site);
+        r.setInspectionType(inspectionType);
         r.setInspectionReferenceNumber(getString(body, "inspectionReferenceNumber"));
         r.setScope(getString(body, "scope"));
         r.setLegalAuthorityReference(getString(body, "legalAuthorityReference"));
         r.setExpectedDuration(getString(body, "expectedDuration"));
-        return repo.save(r);
+        InspectionRecord saved = repo.save(r);
+        auditLogService.record("INSPECTION_CREATED", user.role(), user.fullName(), user.email(),
+            "InspectionRecord", saved.getId(), saved.getInspectionType() + " @ " + saved.getSite());
+        return saved;
     }
 
     @GetMapping
@@ -78,7 +93,14 @@ public class InspectionRecordController {
         InspectionRecord r = findOwned(id, user.id());
         if (body.containsKey("zonesInspected")) r.setZonesInspected(getString(body, "zonesInspected"));
         if (body.containsKey("findingsSummary")) r.setFindingsSummary(getString(body, "findingsSummary"));
-        if (body.containsKey("complianceStatus")) r.setComplianceStatus(getString(body, "complianceStatus"));
+        if (body.containsKey("complianceStatus")) {
+            String status = getString(body, "complianceStatus");
+            if (status != null && !java.util.Set.of("COMPLIANT", "NON_COMPLIANT", "PARTIAL").contains(status)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "complianceStatus must be COMPLIANT, NON_COMPLIANT, or PARTIAL");
+            }
+            r.setComplianceStatus(status);
+        }
         if (body.containsKey("followUpRequired")) r.setFollowUpRequired(Boolean.TRUE.equals(body.get("followUpRequired")));
         if (body.containsKey("reportSubmitted")) r.setReportSubmitted(Boolean.TRUE.equals(body.get("reportSubmitted")));
         if (body.containsKey("nextInspectionDate")) {
@@ -87,7 +109,11 @@ public class InspectionRecordController {
                 try { r.setNextInspectionDate(LocalDate.parse(v.toString())); } catch (Exception ignored) {}
             }
         }
-        return repo.save(r);
+        InspectionRecord saved = repo.save(r);
+        auditLogService.record("INSPECTION_FINDINGS_SUBMITTED", user.role(), user.fullName(), user.email(),
+            "InspectionRecord", saved.getId(),
+            saved.getSite() + " — compliance: " + (saved.getComplianceStatus() != null ? saved.getComplianceStatus() : "n/a"));
+        return saved;
     }
 
     private InspectionRecord findOwned(Long id, Long userId) {

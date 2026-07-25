@@ -110,6 +110,25 @@ public class IncidentReport {
     public void setLongitude(Double v) { this.longitude = v; }
     public String getPhotoData() { return photoData; }
     public void setPhotoData(String v) { this.photoData = v; }
+
+    // Snapshot of "did this have a photo" taken at the moment the list endpoint strips
+    // photoData for the response — see stripPhotoDataForList().
+    @jakarta.persistence.Transient
+    private Boolean hasPhotoOverride;
+
+    // Computed — not stored in DB. Lets list views show a "has photo" indicator without
+    // pulling the (potentially large) base64 photoData into every response.
+    public boolean isHasPhoto() {
+        if (hasPhotoOverride != null) return hasPhotoOverride;
+        return photoData != null && !photoData.isBlank();
+    }
+
+    // Called by list endpoints in place of setPhotoData(null) directly — captures whether a
+    // photo existed before nulling the field, so isHasPhoto() stays correct in the response.
+    public void stripPhotoDataForList() {
+        this.hasPhotoOverride = isHasPhoto();
+        this.photoData = null;
+    }
     public LocalDateTime getIncidentAt() { return incidentAt; }
     public void setIncidentAt(LocalDateTime v) { this.incidentAt = v; }
     public LocalDateTime getReportedAt() { return reportedAt; }

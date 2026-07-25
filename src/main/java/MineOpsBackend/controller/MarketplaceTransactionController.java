@@ -4,6 +4,9 @@ import MineOpsBackend.model.MarketplaceTransaction;
 import MineOpsBackend.repository.MarketplaceTransactionRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.repository.AppUserRepository;
+import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.PushNotificationService;
 import MineOpsBackend.util.CsvExportUtil;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,14 +32,30 @@ public class MarketplaceTransactionController {
 
     private final MarketplaceTransactionRepository transactionRepo;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
+    private final PushNotificationService pushNotificationService;
+    private final AppUserRepository userRepo;
 
     public MarketplaceTransactionController(
         MarketplaceTransactionRepository transactionRepo,
-        AuditLogService auditLogService
+        AuditLogService auditLogService,
+        NotificationService notificationService,
+        PushNotificationService pushNotificationService,
+        AppUserRepository userRepo
     ) {
         this.transactionRepo = transactionRepo;
         this.auditLogService = auditLogService;
+        this.notificationService = notificationService;
+        this.pushNotificationService = pushNotificationService;
+        this.userRepo = userRepo;
     }
+
+    private static final Map<String, String> STATUS_LABELS = Map.of(
+        "PREPARING", "is being prepared",
+        "DISPATCHED", "has been dispatched",
+        "IN_TRANSIT", "is now in transit",
+        "DELIVERED", "has been delivered"
+    );
 
     @GetMapping("/api/marketplace/transactions/mine")
     @PreAuthorize("hasAuthority('ROLE_BUYER')")
@@ -70,6 +89,16 @@ public class MarketplaceTransactionController {
         tx.setUpdatedBy(user.email());
         tx.setUpdatedAt(LocalDateTime.now());
         MarketplaceTransaction saved = transactionRepo.save(tx);
+        String statusPhrase = STATUS_LABELS.getOrDefault(newStatus, "was updated to " + newStatus);
+        String notifTitle = "Order Update";
+        String notifBody = "Your order of " + tx.getMineralType() + " " + statusPhrase + ".";
+        notificationService.notify(tx.getBuyerEmail(), "TRANSACTION", notifTitle, notifBody, "MarketplaceTransaction", saved.getId());
+        userRepo.findByEmailIgnoreCase(tx.getBuyerEmail()).ifPresent(u -> {
+            String token = u.getPushToken();
+            if (token != null && !token.isBlank()) {
+                pushNotificationService.sendToToken(token, notifTitle, notifBody, "default");
+            }
+        });
         auditLogService.record("TRANSACTION_STATUS_UPDATED", user.role(), user.fullName(), user.email(),
             "MARKETPLACE_TRANSACTION", id, "status=" + newStatus);
         return saved;

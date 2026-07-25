@@ -10,6 +10,7 @@ import MineOpsBackend.repository.PasswordResetOtpRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.EmailService;
 import MineOpsBackend.service.JwtService;
+import MineOpsBackend.service.RateLimitService;
 import MineOpsBackend.service.RefreshTokenService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -40,6 +41,8 @@ public class AuthController {
     private static final int OTP_VALIDITY_MINUTES = 15;
     private static final int OTP_RESEND_COOLDOWN_SECONDS = 60;
     private static final int OTP_MAX_REQUESTS_PER_DAY = 5;
+    private static final int REGISTER_MAX_ATTEMPTS_PER_WINDOW = 10;
+    private static final java.time.Duration REGISTER_RATE_LIMIT_WINDOW = java.time.Duration.ofMinutes(15);
 
     private final AppUserRepository appUserRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
@@ -47,23 +50,30 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final EmailService emailService;
     private final PasswordResetOtpRepository passwordResetOtpRepository;
+    private final RateLimitService rateLimitService;
 
     public AuthController(
         AppUserRepository appUserRepository,
         JwtService jwtService,
         RefreshTokenService refreshTokenService,
         EmailService emailService,
-        PasswordResetOtpRepository passwordResetOtpRepository
+        PasswordResetOtpRepository passwordResetOtpRepository,
+        RateLimitService rateLimitService
     ) {
         this.appUserRepository = appUserRepository;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.emailService = emailService;
         this.passwordResetOtpRepository = passwordResetOtpRepository;
+        this.rateLimitService = rateLimitService;
     }
 
     @PostMapping("/api/auth/register")
-    public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
+        String ip = rateLimitService.clientIp(httpRequest);
+        if (!rateLimitService.tryAcquire("register:" + ip, REGISTER_MAX_ATTEMPTS_PER_WINDOW, REGISTER_RATE_LIMIT_WINDOW)) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many registration attempts. Please wait a while before trying again.");
+        }
         String email = request.email().trim().toLowerCase();
 
         if (!ALLOWED_ROLES.contains(request.role())) {
@@ -287,7 +297,11 @@ public class AuthController {
             if (raw != null && !raw.isBlank()) {
                 try {
                     RefreshToken token = refreshTokenService.validate(raw);
-                    refreshTokenService.revokeAll(token.getUserId());
+                    // Revoke only this device's session, not revokeAll(). A user logged in on
+                    // both their phone and a tablet who logs out on one device should not be
+                    // silently signed out of the other — that's what "Sign out of all devices"
+                    // (the sessions screen) is for.
+                    refreshTokenService.revokeOne(token.getUserId(), token.getId());
                 } catch (Exception ignored) {
                     // Already revoked or expired — logout is still successful
                 }
@@ -321,6 +335,13 @@ public class AuthController {
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setMustChangePassword(false);
         appUserRepository.save(user);
+
+        // Same as the OTP reset flow: a password change should invalidate every existing session
+        // (refresh tokens, and JWTs on next request since the filter checks session validity),
+        // not just accept the new password while old sessions/devices stay logged in. The device
+        // making this request will get a 401 on its next call and need to log back in with the
+        // new password, same as any other device.
+        refreshTokenService.revokeAll(user.getId());
 
         return Map.of("success", true);
     }

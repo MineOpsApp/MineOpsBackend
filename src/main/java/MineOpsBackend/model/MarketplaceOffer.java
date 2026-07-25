@@ -33,9 +33,16 @@ public class MarketplaceOffer {
     private String message;
 
     private String status;
+
+    /** Who proposed this specific offer row: "BUYER" or "SUPERVISOR" (counter-offer). Determines which side sees action buttons. */
+    private String proposedByRole;
+
     private LocalDateTime createdAt;
     private LocalDateTime respondedAt;
     private String respondedBy;
+
+    @Column(length = 500)
+    private String rejectionReason;
 
     public MarketplaceOffer() {}
 
@@ -56,10 +63,14 @@ public class MarketplaceOffer {
     public void setMessage(String v) { this.message = v; }
     public String getStatus() { return status; }
     public void setStatus(String v) { this.status = v; }
+    public String getProposedByRole() { return proposedByRole; }
+    public void setProposedByRole(String v) { this.proposedByRole = v; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime v) { this.createdAt = v; }
     public LocalDateTime getRespondedAt() { return respondedAt; }
     public void setRespondedAt(LocalDateTime v) { this.respondedAt = v; }
     public String getRespondedBy() { return respondedBy; }
     public void setRespondedBy(String v) { this.respondedBy = v; }
+    public String getRejectionReason() { return rejectionReason; }
+    public void setRejectionReason(String v) { this.rejectionReason = v; }
 }

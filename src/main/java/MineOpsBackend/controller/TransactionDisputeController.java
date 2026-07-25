@@ -5,6 +5,7 @@ import MineOpsBackend.model.TransactionDispute;
 import MineOpsBackend.repository.MarketplaceTransactionRepository;
 import MineOpsBackend.repository.TransactionDisputeRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,11 +30,14 @@ public class TransactionDisputeController {
 
     private final MarketplaceTransactionRepository txRepo;
     private final TransactionDisputeRepository disputeRepo;
+    private final AuditLogService auditLogService;
 
     public TransactionDisputeController(MarketplaceTransactionRepository txRepo,
-                                        TransactionDisputeRepository disputeRepo) {
+                                        TransactionDisputeRepository disputeRepo,
+                                        AuditLogService auditLogService) {
         this.txRepo = txRepo;
         this.disputeRepo = disputeRepo;
+        this.auditLogService = auditLogService;
     }
 
     @PostMapping("/transactions/{id}/dispute")
@@ -65,7 +69,10 @@ public class TransactionDisputeController {
         dispute.setReason(reason.trim());
         dispute.setStatus("OPEN");
         dispute.setCreatedAt(LocalDateTime.now());
-        return disputeRepo.save(dispute);
+        TransactionDispute saved = disputeRepo.save(dispute);
+        auditLogService.record("TRANSACTION_DISPUTE_RAISED", user.role(), user.fullName(), user.email(),
+            "TransactionDispute", saved.getId(), "Transaction #" + id + " — " + reason.trim());
+        return saved;
     }
 
     @GetMapping("/transactions/{id}/dispute")
@@ -112,6 +119,9 @@ public class TransactionDisputeController {
         dispute.setStatus("RESOLVED");
         dispute.setResolutionNotes(notes.trim());
         dispute.setResolvedAt(LocalDateTime.now());
-        return disputeRepo.save(dispute);
+        TransactionDispute saved = disputeRepo.save(dispute);
+        auditLogService.record("TRANSACTION_DISPUTE_RESOLVED", user.role(), user.fullName(), user.email(),
+            "TransactionDispute", saved.getId(), notes.trim());
+        return saved;
     }
 }

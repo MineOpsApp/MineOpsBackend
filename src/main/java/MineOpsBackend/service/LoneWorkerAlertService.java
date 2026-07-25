@@ -41,6 +41,7 @@ public class LoneWorkerAlertService {
 
             List<String> tokens = new java.util.ArrayList<>();
             for (AppUser sup : supervisors) {
+                if (sup.getDeletedAt() != null || Boolean.FALSE.equals(sup.getActive())) continue;
                 String t = sup.getPushToken();
                 if (t != null && !t.isBlank()) tokens.add(t);
             }

@@ -104,7 +104,7 @@ public class DangerZoneController {
         );
 
         try {
-            String notifTitle = "🚧 Danger Zone — " + saved.getZoneName();
+            String notifTitle = "Danger Zone — " + saved.getZoneName();
             String notifBody = saved.getRiskLevel() + " risk zone active at " + saved.getSite() + ". Avoid this area.";
 
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
@@ -216,7 +216,7 @@ public class DangerZoneController {
         DangerZone zone = findAndCheckSite(id, user);
 
         try {
-            String notifTitle = "⚠️ Worker entered danger zone";
+            String notifTitle = "Worker entered danger zone";
             String notifBody = user.fullName() + " has entered \"" + zone.getZoneName() + "\" (" + zone.getRiskLevel() + " risk) at " + zone.getSite() + ".";
 
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())

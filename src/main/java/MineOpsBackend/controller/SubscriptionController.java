@@ -7,6 +7,7 @@ import MineOpsBackend.repository.SiteSubscriptionRepository;
 import MineOpsBackend.repository.SubscriptionPaymentRepository;
 import MineOpsBackend.repository.SubscriptionTierRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.AuditLogService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,15 +28,18 @@ public class SubscriptionController {
     private final SubscriptionTierRepository tierRepo;
     private final SiteSubscriptionRepository subscriptionRepo;
     private final SubscriptionPaymentRepository paymentRepo;
+    private final AuditLogService auditLogService;
 
     public SubscriptionController(
         SubscriptionTierRepository tierRepo,
         SiteSubscriptionRepository subscriptionRepo,
-        SubscriptionPaymentRepository paymentRepo
+        SubscriptionPaymentRepository paymentRepo,
+        AuditLogService auditLogService
     ) {
         this.tierRepo = tierRepo;
         this.subscriptionRepo = subscriptionRepo;
         this.paymentRepo = paymentRepo;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping("/tiers")
@@ -68,6 +72,12 @@ public class SubscriptionController {
         try { amount = new BigDecimal(amtStr); }
         catch (NumberFormatException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid amountGhs");
+        }
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amountGhs must be greater than zero");
+        }
+        if (amount.compareTo(new BigDecimal("1000000")) > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amountGhs is unreasonably large — check the value");
         }
 
         String periodEndStr = (String) body.get("periodCoveredEnd");
@@ -110,6 +120,13 @@ public class SubscriptionController {
             catch (NumberFormatException ignored) {}
         }
         subscriptionRepo.save(sub);
+
+        auditLogService.record(
+            "SUBSCRIPTION_PAYMENT_RECORDED",
+            user.role(), user.fullName(), user.email(),
+            "SiteSubscription", sub.getId(),
+            "GHS " + amount + " recorded for " + user.assignedSite() + " — covers through " + periodEnd
+        );
 
         return Map.of("subscription", sub, "payment", payment);
     }

@@ -71,6 +71,7 @@ public class WorkerMessageController {
 
         List<String> supervisorTokens = new java.util.ArrayList<>();
         for (AppUser sup : userRepo.findByRoleAndAssignedSiteIgnoreCase("supervisor", sender.getAssignedSite())) {
+            if (sup.getDeletedAt() != null || Boolean.FALSE.equals(sup.getActive())) continue;
             String token = sup.getPushToken();
             if (token != null && !token.isBlank()) supervisorTokens.add(token);
         }
@@ -111,7 +112,7 @@ public class WorkerMessageController {
         if (staff.getAssignedSite() == null) return List.of();
         return userRepo.findByRoleAndAssignedSiteIgnoreCase("worker", staff.getAssignedSite())
             .stream()
-            .filter(w -> !Boolean.TRUE.equals(w.getPending()) && !Boolean.FALSE.equals(w.getActive()))
+            .filter(w -> !Boolean.TRUE.equals(w.getPending()) && !Boolean.FALSE.equals(w.getActive()) && w.getDeletedAt() == null)
             .map(w -> {
                 Map<String, Object> m = new LinkedHashMap<>();
                 m.put("email", w.getEmail());
@@ -146,6 +147,9 @@ public class WorkerMessageController {
 
         if (!"worker".equals(worker.getRole())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipient must be a worker");
+        }
+        if (worker.getDeletedAt() != null || Boolean.FALSE.equals(worker.getActive())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Worker not found");
         }
         if (sender.getAssignedSite() == null || worker.getAssignedSite() == null ||
             !sender.getAssignedSite().equalsIgnoreCase(worker.getAssignedSite())) {

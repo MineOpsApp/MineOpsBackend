@@ -88,7 +88,12 @@ public class ShiftLogController {
 
         if (request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
             var existing = shiftLogRepository.findByClientRequestId(request.clientRequestId());
-            if (existing.isPresent()) return existing.get();
+            // Only replay this idempotency shortcut for the same worker who created it —
+            // clientRequestId is client-generated, so a guessed/reused id must not let one
+            // worker fetch another worker's shift log record.
+            if (existing.isPresent() && existing.get().getWorkerEmail().equalsIgnoreCase(user.email())) {
+                return existing.get();
+            }
         }
 
         ShiftLog log = new ShiftLog(

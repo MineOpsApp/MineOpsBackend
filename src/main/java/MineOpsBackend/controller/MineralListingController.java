@@ -7,6 +7,8 @@ import MineOpsBackend.repository.MineralListingRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.dto.CreateListingRequest;
 import MineOpsBackend.service.AuditLogService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 public class MineralListingController {
@@ -29,6 +32,9 @@ public class MineralListingController {
     private final MineralListingRepository listingRepo;
     private final AppUserRepository userRepo;
     private final AuditLogService auditLogService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public MineralListingController(
         MineralListingRepository listingRepo,
@@ -86,19 +92,51 @@ public class MineralListingController {
     @GetMapping("/api/marketplace/listings")
     @PreAuthorize("hasAnyAuthority('ROLE_BUYER', 'ROLE_SUPERVISOR')")
     public List<MineralListing> getListings(@AuthenticationPrincipal AuthenticatedUser user) {
+        List<MineralListing> listings;
         if ("buyer".equals(user.role())) {
             AppUser buyer = userRepo.findById(user.id())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
             if (!"VERIFIED".equals(buyer.getBuyerVerificationStatus())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Buyer account not yet verified");
             }
-            return listingRepo.findByStatusOrderByCreatedAtDesc("ACTIVE");
+            listings = listingRepo.findByStatusOrderByCreatedAtDesc("ACTIVE");
+        } else {
+            if (user.assignedSite() == null) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "No site assigned to your account. Contact an administrator.");
+            }
+            listings = listingRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(user.assignedSite());
         }
-        if (user.assignedSite() == null) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                "No site assigned to your account. Contact an administrator.");
+        // Photos are fetched on demand via /api/marketplace/listings/{id}/photo — this is the
+        // highest-traffic browse endpoint in the app, so every listing's full base64 photo
+        // getting pulled into memory on every browse was a real production risk.
+        listings.forEach(l -> { entityManager.detach(l); l.stripPhotoDataForList(); });
+        return listings;
+    }
+
+    // Fetch the (potentially large) base64 photo for one listing on demand — never returned
+    // in bulk from the list endpoint above. Same visibility rule as the list: a verified buyer
+    // can view any active listing's photo; a supervisor can only view their own site's.
+    @GetMapping("/api/marketplace/listings/{id}/photo")
+    @PreAuthorize("hasAnyAuthority('ROLE_BUYER', 'ROLE_SUPERVISOR')")
+    public Map<String, String> getListingPhoto(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        MineralListing listing = listingRepo.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found"));
+
+        if ("buyer".equals(user.role())) {
+            AppUser buyer = userRepo.findById(user.id())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+            if (!"VERIFIED".equals(buyer.getBuyerVerificationStatus())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Buyer account not yet verified");
+            }
+        } else if (!listing.getSite().equalsIgnoreCase(user.assignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Listing belongs to a different site");
         }
-        return listingRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(user.assignedSite());
+
+        return Map.of("photoData", listing.getPhotoData() != null ? listing.getPhotoData() : "");
     }
 
     @PatchMapping("/api/marketplace/listings/{id}/withdraw")

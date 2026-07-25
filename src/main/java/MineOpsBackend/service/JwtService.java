@@ -22,7 +22,7 @@ public class JwtService {
 
     public JwtService(@Value("${mineops.jwt.secret}") String secret) {
         if (secret == null || secret.trim().length() < 32) {
-            throw new IllegalStateException("MINEOPS_JWT_SECRET must be set and at least 32 characters long");
+            throw new IllegalStateException("MINEOPS_JWT_SECRET (mineops.jwt.secret) must be set and at least 32 characters long");
         }
 
         this.secret = secret.trim();
@@ -41,7 +41,13 @@ public class JwtService {
             payload.put("site", user.getAssignedSite());
             payload.put("guestSubRole", user.getGuestSubRole());
             payload.put("sid", sessionId);
-            payload.put("exp", Instant.now().plusSeconds(60 * 60).getEpochSecond()); // 1 hour
+            // Shortened from 1 hour to 20 minutes: MineOpsAuditService validates this same token
+            // but has no way to check whether the session behind it has since been revoked
+            // (logout, admin force-revoke, password reset, suspension) — a shorter TTL bounds how
+            // long a revoked session's token can still be used to read audit logs there. The
+            // frontend already refreshes proactively (~5 min before expiry) and transparently
+            // retries once on a 401, so this is not expected to be user-visible.
+            payload.put("exp", Instant.now().plusSeconds(20 * 60).getEpochSecond()); // 20 minutes
 
             String headerPart = encode(objectMapper.writeValueAsBytes(header));
             String payloadPart = encode(objectMapper.writeValueAsBytes(payload));

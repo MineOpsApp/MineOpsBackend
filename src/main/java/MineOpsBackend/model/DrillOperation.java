@@ -46,6 +46,13 @@ public class DrillOperation {
     private String blastApprovedByName;
     private LocalDateTime blastApprovedAt;
 
+    /** Latest safety-officer/supervisor call on this blast: APPROVED, WAIT, or STOP. Sign-off
+     *  on the "blasting" step requires this to be APPROVED — WAIT/STOP block it. */
+    @Column(length = 20)
+    private String blastDecision;
+    @Column(length = 500)
+    private String blastDecisionNote;
+
     private LocalDateTime startedAt;
     private LocalDateTime completedAt;
 
@@ -111,6 +118,10 @@ public class DrillOperation {
     public void setBlastApprovedByName(String v) { this.blastApprovedByName = v; }
     public LocalDateTime getBlastApprovedAt() { return blastApprovedAt; }
     public void setBlastApprovedAt(LocalDateTime v) { this.blastApprovedAt = v; }
+    public String getBlastDecision() { return blastDecision; }
+    public void setBlastDecision(String v) { this.blastDecision = v; }
+    public String getBlastDecisionNote() { return blastDecisionNote; }
+    public void setBlastDecisionNote(String v) { this.blastDecisionNote = v; }
     public LocalDateTime getStartedAt() { return startedAt; }
     public void setStartedAt(LocalDateTime v) { this.startedAt = v; }
     public LocalDateTime getCompletedAt() { return completedAt; }

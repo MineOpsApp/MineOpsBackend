@@ -1,10 +1,15 @@
 package MineOpsBackend.controller;
 
 import MineOpsBackend.dto.ClockInRequest;
+import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.AttendanceRecord;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.AttendanceRepository;
+import MineOpsBackend.repository.SafetyChecklistRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.PushNotificationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -14,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -23,10 +29,25 @@ public class AttendanceController {
 
     private final AttendanceRepository attendanceRepository;
     private final AuditLogService auditLogService;
+    private final SafetyChecklistRepository checklistRepository;
+    private final NotificationService notificationService;
+    private final PushNotificationService pushNotificationService;
+    private final AppUserRepository userRepo;
 
-    public AttendanceController(AttendanceRepository attendanceRepository, AuditLogService auditLogService) {
+    public AttendanceController(
+        AttendanceRepository attendanceRepository,
+        AuditLogService auditLogService,
+        SafetyChecklistRepository checklistRepository,
+        NotificationService notificationService,
+        PushNotificationService pushNotificationService,
+        AppUserRepository userRepo
+    ) {
         this.attendanceRepository = attendanceRepository;
         this.auditLogService = auditLogService;
+        this.checklistRepository = checklistRepository;
+        this.notificationService = notificationService;
+        this.pushNotificationService = pushNotificationService;
+        this.userRepo = userRepo;
     }
 
     @PostMapping("/api/attendance/clock-in")
@@ -59,6 +80,21 @@ public class AttendanceController {
         AttendanceRecord saved = attendanceRepository.save(record);
         auditLogService.record("CLOCK_IN", user.role(), user.fullName(), user.email(),
             "AttendanceRecord", saved.getId(), saved.getSite() + " — " + zone);
+
+        if ("worker".equals(user.role())) {
+            boolean submitted = checklistRepository.findByWorkerIdAndShiftDate(user.id(), LocalDate.now()).isPresent();
+            if (!submitted) {
+                String title = "Safety Checklist Reminder";
+                String body = "You're signed in but haven't completed today's safety checklist yet. Complete it before starting work.";
+                notificationService.notify(user.email(), "SAFETY_CHECKLIST", title, body, "AttendanceRecord", saved.getId());
+                userRepo.findById(user.id()).ifPresent(u -> {
+                    String token = u.getPushToken();
+                    if (token != null && !token.isBlank()) {
+                        pushNotificationService.sendToToken(token, title, body, "default");
+                    }
+                });
+            }
+        }
 
         return saved;
     }

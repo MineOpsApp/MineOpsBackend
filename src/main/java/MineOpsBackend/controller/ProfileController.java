@@ -69,8 +69,8 @@ public class ProfileController {
         }
         if (body.containsKey("momoNumber")) {
             String num = body.get("momoNumber");
-            if (num != null && !num.isBlank() && !num.matches("\\d{10,15}"))
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MoMo number must be 10–15 digits.");
+            if (num != null && !num.isBlank() && !num.matches("\\d{10}"))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "MoMo number must be exactly 10 digits.");
             appUser.setMomoNumber(num == null || num.isBlank() ? null : num);
         }
         if (body.containsKey("momoNetwork")) {

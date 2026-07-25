@@ -36,6 +36,12 @@ public class AuditOutboxRelay {
         @Value("${mineops.audit-service.url}") String auditServiceUrl,
         @Value("${mineops.internal-api-key}") String internalApiKey
     ) {
+        if (internalApiKey == null || internalApiKey.trim().length() < 32) {
+            throw new IllegalStateException("MINEOPS_INTERNAL_API_KEY (mineops.internal-api-key) must be set and at least 32 characters long — it must match the value MineOpsAuditService validates against.");
+        }
+        if (auditServiceUrl == null || auditServiceUrl.isBlank()) {
+            throw new IllegalStateException("AUDIT_SERVICE_URL (mineops.audit-service.url) must be set to the deployed MineOpsAuditService base URL — without it, audit log delivery fails silently.");
+        }
         this.auditOutboxRepository = auditOutboxRepository;
         this.auditServiceUrl = auditServiceUrl.trim().replaceAll("/+$", "");
         this.internalApiKey = internalApiKey.trim();
@@ -55,6 +61,7 @@ public class AuditOutboxRelay {
                 body.put("targetType", entry.getTargetType());
                 body.put("targetId", entry.getTargetId());
                 body.put("details", entry.getDetails());
+                body.put("site", entry.getSite());
 
                 HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(auditServiceUrl + "/api/internal/audit-logs"))

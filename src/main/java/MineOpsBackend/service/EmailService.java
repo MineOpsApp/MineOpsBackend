@@ -2,6 +2,7 @@ package MineOpsBackend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -88,6 +89,29 @@ public class EmailService {
         this.senderEmail = senderEmail;
         this.senderName = senderName;
         this.enabled = enabled;
+    }
+
+    // Runs once at boot. A missing/blank Gmail credential doesn't fail startup (email is
+    // best-effort and must never block the app from coming up), but it silently disables every
+    // transactional email in the system — including password reset OTPs, which is the ONLY
+    // self-service recovery path for supervisor/safetyOfficer accounts (admins are explicitly
+    // blocked from resetting those two roles' passwords for privilege-separation reasons — see
+    // AdminController.resetPassword). Log this loudly and immediately on deploy, not only when a
+    // real user hits a lockout and someone has to dig through logs to find out why.
+    @PostConstruct
+    private void checkConfigOnStartup() {
+        if (!enabled) {
+            log.warn("[EMAIL] mineops.mail.enabled=false — all transactional email (including password reset OTPs) is disabled.");
+            return;
+        }
+        if (clientId.isBlank() || clientSecret.isBlank() || refreshToken.isBlank()) {
+            log.error("[EMAIL MISCONFIGURED] Gmail API credentials are missing (GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET / "
+                + "GMAIL_REFRESH_TOKEN). ALL transactional email will silently fail to send, including password reset "
+                + "OTPs — supervisors and safety officers have NO other way to recover a forgotten password. Fix the "
+                + "Railway env vars now, before someone gets locked out.");
+        } else {
+            log.info("[EMAIL] Gmail API credentials configured — sender={}", senderEmail);
+        }
     }
 
     private synchronized String getAccessToken() throws Exception {
@@ -226,6 +250,15 @@ public class EmailService {
         String title = "Your account has been reinstated";
         String body = "<p>Hi " + safe(fullName) + ",</p>"
             + "<p>Your MineOps account has been reinstated. You can now sign in as usual.</p>";
+        send(email, title, wrap(title, body));
+    }
+
+    @Async
+    public void sendAccountDeleted(String email, String fullName) {
+        String title = "Your account has been removed";
+        String body = "<p>Hi " + safe(fullName) + ",</p>"
+            + "<p>Your MineOps account has been removed by your site administrator and you will no longer be able to sign in. "
+            + "If you believe this was done in error, contact your supervisor or safety officer.</p>";
         send(email, title, wrap(title, body));
     }
 

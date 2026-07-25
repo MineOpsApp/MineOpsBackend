@@ -4,6 +4,8 @@ import MineOpsBackend.model.Site;
 import MineOpsBackend.repository.SiteRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -24,15 +26,38 @@ public class SiteController {
     private final SiteRepository siteRepository;
     private final AuditLogService auditLogService;
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     public SiteController(SiteRepository siteRepository, AuditLogService auditLogService) {
         this.siteRepository = siteRepository;
         this.auditLogService = auditLogService;
     }
 
+    // General site directory — deliberately strips insurance/financial fields (premium,
+    // provider) so any authenticated role (worker, buyer, guest, etc.) can't read another
+    // site's confidential insurance arrangement just by calling this endpoint. A supervisor's
+    // own full record (including insurance fields) is available via /sites/mine. Detach before
+    // nulling so this never gets flushed back to the DB (open-in-view keeps the session alive
+    // for the whole request).
     @GetMapping("/api/sites")
     @PreAuthorize("isAuthenticated()")
     public List<Site> getSites() {
-        return siteRepository.findAll();
+        List<Site> sites = siteRepository.findAll();
+        sites.forEach(s -> {
+            entityManager.detach(s);
+            s.setInsuranceProviderName(null);
+            s.setInsurancePremium(null);
+        });
+        return sites;
+    }
+
+    // A supervisor's own site, with the full record including insurance/financial fields.
+    @GetMapping("/api/sites/mine")
+    @PreAuthorize("hasAuthority('ROLE_SUPERVISOR')")
+    public Site getMySite(@AuthenticationPrincipal AuthenticatedUser user) {
+        return siteRepository.findByNameIgnoreCase(user.assignedSite())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Site not found"));
     }
 
     @PatchMapping("/api/sites/visibility")

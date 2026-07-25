@@ -27,6 +27,11 @@ public class AuditOutboxEntry {
     private Long targetId;
     private String details;
 
+    // Resolved from the actor's assignedSite at record()-call time — lets the audit service
+    // scope reads to the caller's own site instead of leaking every site's audit trail to
+    // any supervisor/safety officer nationwide.
+    private String site;
+
     @Column(nullable = false)
     private String status;
 
@@ -99,6 +104,14 @@ public class AuditOutboxEntry {
 
     public void setDetails(String details) {
         this.details = details;
+    }
+
+    public String getSite() {
+        return site;
+    }
+
+    public void setSite(String site) {
+        this.site = site;
     }
 
     public String getStatus() {

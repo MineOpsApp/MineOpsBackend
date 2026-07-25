@@ -11,40 +11,39 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 
+/**
+ * Internal record of a site's regulatory permits/licenses (mining lease, environmental permit,
+ * explosives license, etc.) with an optional scanned document attached. Not shown to workers —
+ * this is a supervisor/safety-officer compliance record, not a worker-facing feature.
+ */
 @Entity
-@Table(name = "certifications")
-public class Certification {
+@Table(name = "site_permits")
+public class SitePermit {
 
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false) private Long workerId;
-    @Column(nullable = false) private String workerName;
-    @Column(nullable = false) private String workerEmail;
     @Column(nullable = false) private String site;
-    @Column(nullable = false) private String certificationName;
+    @Column(nullable = false) private String permitName;
+    private String permitNumber;
     @Column(nullable = false) private String issuingAuthority;
     @Column(nullable = false) private LocalDate issueDate;
     @Column(nullable = false) private LocalDate expiryDate;
     private String notes;
-    @Column(columnDefinition = "TEXT") private String photoData;
+    @Column(columnDefinition = "TEXT") private String documentData;
     @Column(nullable = false) private LocalDateTime createdAt;
     @Column(nullable = false) private LocalDateTime updatedAt;
     @Column(nullable = false) private String createdBy;
 
-    public Certification() {}
+    public SitePermit() {}
 
-    public Certification(
-        Long workerId, String workerName, String workerEmail, String site,
-        String certificationName, String issuingAuthority,
-        LocalDate issueDate, LocalDate expiryDate,
-        String notes, String createdBy
+    public SitePermit(
+        String site, String permitName, String permitNumber, String issuingAuthority,
+        LocalDate issueDate, LocalDate expiryDate, String notes, String createdBy
     ) {
-        this.workerId = workerId;
-        this.workerName = workerName;
-        this.workerEmail = workerEmail;
         this.site = site;
-        this.certificationName = certificationName;
+        this.permitName = permitName;
+        this.permitNumber = permitNumber;
         this.issuingAuthority = issuingAuthority;
         this.issueDate = issueDate;
         this.expiryDate = expiryDate;
@@ -54,7 +53,7 @@ public class Certification {
         this.updatedAt = LocalDateTime.now();
     }
 
-    // Computed — not stored in DB, always fresh
+    // Computed — not stored, always fresh
     public String getStatus() {
         if (expiryDate == null) return "UNKNOWN";
         LocalDate now = LocalDate.now();
@@ -68,34 +67,33 @@ public class Certification {
         return ChronoUnit.DAYS.between(LocalDate.now(), expiryDate);
     }
 
-    // Snapshot of "did this have a photo" taken at the moment the list endpoint strips
-    // photoData for the response. Without this, isHasPhoto() would read the already-nulled
-    // photoData field at JSON-serialization time (which happens after the controller method
+    // Snapshot of "did this have a document" taken at the moment the list endpoint strips
+    // documentData for the response. Without this, isHasDocument() would read the already-nulled
+    // documentData field at JSON-serialization time (which happens after the controller method
     // returns) and would always report false.
     @jakarta.persistence.Transient
-    private Boolean hasPhotoOverride;
+    private Boolean hasDocumentOverride;
 
-    // Computed — not stored in DB. Lets list views show a "has photo" indicator
-    // without pulling the (potentially large) base64 photoData into every response.
-    public boolean isHasPhoto() {
-        if (hasPhotoOverride != null) return hasPhotoOverride;
-        return photoData != null && !photoData.isBlank();
+    // Computed — list views show a "has document" indicator without pulling the
+    // (potentially large) base64 payload into every response.
+    public boolean isHasDocument() {
+        if (hasDocumentOverride != null) return hasDocumentOverride;
+        return documentData != null && !documentData.isBlank();
     }
 
-    // Called by list endpoints in place of setPhotoData(null) directly — captures whether a
-    // photo existed before nulling the field, so isHasPhoto() stays correct in the response.
-    public void stripPhotoDataForList() {
-        this.hasPhotoOverride = isHasPhoto();
-        this.photoData = null;
+    // Called by list endpoints in place of setDocumentData(null) directly — captures whether a
+    // document existed before nulling the field, so isHasDocument() stays correct in the response.
+    public void stripDocumentDataForList() {
+        this.hasDocumentOverride = isHasDocument();
+        this.documentData = null;
     }
 
     public Long getId() { return id; }
-    public Long getWorkerId() { return workerId; }
-    public String getWorkerName() { return workerName; }
-    public String getWorkerEmail() { return workerEmail; }
     public String getSite() { return site; }
-    public String getCertificationName() { return certificationName; }
-    public void setCertificationName(String v) { this.certificationName = v; }
+    public String getPermitName() { return permitName; }
+    public void setPermitName(String v) { this.permitName = v; }
+    public String getPermitNumber() { return permitNumber; }
+    public void setPermitNumber(String v) { this.permitNumber = v; }
     public String getIssuingAuthority() { return issuingAuthority; }
     public void setIssuingAuthority(String v) { this.issuingAuthority = v; }
     public LocalDate getIssueDate() { return issueDate; }
@@ -104,8 +102,8 @@ public class Certification {
     public void setExpiryDate(LocalDate v) { this.expiryDate = v; }
     public String getNotes() { return notes; }
     public void setNotes(String v) { this.notes = v; }
-    public String getPhotoData() { return photoData; }
-    public void setPhotoData(String v) { this.photoData = v; }
+    public String getDocumentData() { return documentData; }
+    public void setDocumentData(String v) { this.documentData = v; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime v) { this.updatedAt = v; }

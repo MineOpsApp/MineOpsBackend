@@ -83,9 +83,9 @@ public class PayController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Only DRAFT cycles can receive first approval (current status: " + cycle.getStatus() + ")");
 
-        if (user.email().equalsIgnoreCase(cycle.getCreatedBy()) == false) {
-            // anyone can give first approval — just record who it was
-        }
+        if (user.email().equalsIgnoreCase(cycle.getCreatedBy()))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "The person who created this pay cycle cannot also give the first approval");
 
         cycle.setManagerApprovedBy(user.email());
         cycle.setManagerApprovedAt(LocalDateTime.now());

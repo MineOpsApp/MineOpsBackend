@@ -11,6 +11,8 @@ import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
 import MineOpsBackend.util.CsvExportUtil;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +44,9 @@ public class IncidentController {
     private final AuditLogService auditLogService;
     private final PushNotificationService pushNotificationService;
     private final NotificationService notificationService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public IncidentController(
         IncidentReportRepository incidentReportRepository,
@@ -94,8 +100,7 @@ public class IncidentController {
         // Notify supervisors and safety officers for Serious and Critical incidents
         if ("Serious".equals(request.severity()) || "Critical".equals(request.severity())) {
             try {
-                String emoji = "Critical".equals(request.severity()) ? "🔴" : "🟠";
-                String notifTitle = emoji + " " + request.severity() + " Incident — " + user.assignedSite();
+                String notifTitle = request.severity() + " Incident — " + user.assignedSite();
                 String notifBody = request.category() + " in " + request.zone() + " reported by " + user.fullName();
 
                 List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
@@ -124,13 +129,39 @@ public class IncidentController {
     @GetMapping("/api/incidents/mine")
     @PreAuthorize("isAuthenticated()")
     public List<IncidentReport> getMyIncidents(@AuthenticationPrincipal AuthenticatedUser user) {
-        return incidentReportRepository.findByReportedByEmailIgnoreCaseOrderByReportedAtDesc(user.email());
+        List<IncidentReport> reports = incidentReportRepository.findByReportedByEmailIgnoreCaseOrderByReportedAtDesc(user.email());
+        reports.forEach(r -> { entityManager.detach(r); r.stripPhotoDataForList(); });
+        return reports;
     }
 
     @GetMapping("/api/incidents")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public List<IncidentReport> getSiteIncidents(@AuthenticationPrincipal AuthenticatedUser user) {
-        return incidentReportRepository.findBySiteOrderByReportedAtDesc(user.assignedSite());
+        List<IncidentReport> reports = incidentReportRepository.findBySiteOrderByReportedAtDesc(user.assignedSite());
+        reports.forEach(r -> { entityManager.detach(r); r.stripPhotoDataForList(); });
+        return reports;
+    }
+
+    // Fetch the (potentially large) base64 photo for one incident report on demand — never
+    // returned in bulk from the list endpoints above. Visible to the reporting worker (own
+    // incidents) or any supervisor/safety officer on the same site.
+    @GetMapping("/api/incidents/{id}/photo")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, String> getIncidentPhoto(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        IncidentReport report = incidentReportRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Incident report not found"));
+
+        boolean isOwnReport = report.getReportedByEmail().equalsIgnoreCase(user.email());
+        boolean isSiteReviewer = ("supervisor".equals(user.role()) || "safetyOfficer".equals(user.role()))
+            && report.getSite().equalsIgnoreCase(user.assignedSite());
+        if (!isOwnReport && !isSiteReviewer) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+
+        return Map.of("photoData", report.getPhotoData() != null ? report.getPhotoData() : "");
     }
 
     @PatchMapping("/api/incidents/{id}/status")

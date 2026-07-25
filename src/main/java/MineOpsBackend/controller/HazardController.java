@@ -12,6 +12,8 @@ import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
 import MineOpsBackend.util.CsvExportUtil;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,6 +46,9 @@ public class HazardController {
     private final AuditLogService auditLogService;
     private final PushNotificationService pushNotificationService;
     private final NotificationService notificationService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public HazardController(
         HazardReportRepository hazardReportRepository,
@@ -61,19 +67,40 @@ public class HazardController {
     @GetMapping("/api/hazards")
     @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public Page<HazardReport> getHazards(@AuthenticationPrincipal AuthenticatedUser user, Pageable pageable) {
-        if ("worker".equals(user.role())) {
-            return hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(user.email(), pageable);
-        }
-        return hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite(), pageable);
+        Page<HazardReport> page = "worker".equals(user.role())
+            ? hazardReportRepository.findByReportedByEmailIgnoreCaseOrderByCreatedAtDesc(user.email(), pageable)
+            : hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite(), pageable);
+        // Photos are fetched on demand via /api/hazards/{id}/photo — list views only need
+        // the hasPhoto flag, not the (potentially large) base64 payload.
+        page.getContent().forEach(h -> { entityManager.detach(h); h.stripPhotoDataForList(); });
+        return page;
     }
 
     @GetMapping("/api/hazards/site-alerts")
     @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER','ROLE_GUEST')")
     public List<HazardReport> getSiteHazardAlerts(@AuthenticationPrincipal AuthenticatedUser user) {
-        return hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite()).stream()
+        List<HazardReport> alerts = hazardReportRepository.findBySiteOrderByCreatedAtDesc(user.assignedSite()).stream()
             .filter((hazard) -> !"CLEARED".equalsIgnoreCase(hazard.getStatus()))
             .limit(10)
             .toList();
+        alerts.forEach(h -> { entityManager.detach(h); h.stripPhotoDataForList(); });
+        return alerts;
+    }
+
+    // Fetch the (potentially large) base64 photo for one hazard report on demand — never
+    // returned in bulk from the list endpoints above. Hazards are visible site-wide (via
+    // site-alerts) so this only checks site membership, not report ownership.
+    @GetMapping("/api/hazards/{id}/photo")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER','ROLE_GUEST')")
+    public Map<String, String> getHazardPhoto(
+        @PathVariable Long id,
+        @AuthenticationPrincipal AuthenticatedUser user
+    ) {
+        HazardReport report = hazardReportRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Hazard report not found"));
+        if (!report.getSite().equalsIgnoreCase(user.assignedSite()))
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Hazard belongs to a different site");
+        return Map.of("photoData", report.getPhotoData() != null ? report.getPhotoData() : "");
     }
 
     @PostMapping("/api/hazards")
@@ -123,8 +150,7 @@ public class HazardController {
                     .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                     .collect(Collectors.toList());
 
-                String emoji = "Critical".equals(severity) ? "🔴" : "🟠";
-                String notifTitle = emoji + " " + severity + " Hazard — " + saved.getSite();
+                String notifTitle = severity + " Hazard — " + saved.getSite();
                 String notifBody = user.fullName() + " reported: " + request.hazardType() + " at " + request.location();
 
                 List<String> tokens = recipients.stream()

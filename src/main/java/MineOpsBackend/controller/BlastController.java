@@ -80,12 +80,13 @@ public class BlastController {
         try {
             long minutesUntil = java.time.Duration.between(
                 LocalDateTime.now(java.time.ZoneOffset.UTC), blastTime).toMinutes();
-            String notifTitle = "💥 Blast Scheduled — " + request.zone();
+            String notifTitle = "Blast Scheduled — " + request.zone();
             String notifBody = "Blasting in " + request.zone() + " in " + minutesUntil + " minutes. Clear the area immediately.";
 
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .collect(Collectors.toList());
 
             List<String> tokens = recipients.stream()
@@ -140,12 +141,13 @@ public class BlastController {
 
         // Notify site users of cancellation
         try {
-            String notifTitle = "✅ Blast Cancelled — " + blast.getZone();
+            String notifTitle = "Blast Cancelled — " + blast.getZone();
             String notifBody = "The scheduled blast in " + blast.getZone() + " has been cancelled. Area is clear.";
 
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .collect(Collectors.toList());
 
             List<String> tokens = recipients.stream()
