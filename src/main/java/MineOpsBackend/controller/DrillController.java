@@ -24,9 +24,13 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 public class DrillController {
+
+    private static final Logger log = LoggerFactory.getLogger(DrillController.class);
 
     private final DrillOperationRepository drillOperationRepository;
     private final AppUserRepository appUserRepository;
@@ -62,7 +66,14 @@ public class DrillController {
         auditLogService.record("DRILL_STARTED", user.role(), user.fullName(), user.email(),
             "DrillOperation", op.getId(), request.drillType() + " in " + request.zone());
 
-        notifySafetyStaff(op, "started", user.assignedSite());
+        // Wrapped so a notification failure (or an empty/mismatched recipient lookup) can't 500
+        // the worker's start-drill request — the drill is already saved above either way.
+        try {
+            notifySafetyStaff(op, "started", user.assignedSite());
+        } catch (Exception e) {
+            log.warn("Failed to notify safety staff of drill start (site={}, drillId={}): {}",
+                user.assignedSite(), op.getId(), e.getMessage());
+        }
 
         return op;
     }

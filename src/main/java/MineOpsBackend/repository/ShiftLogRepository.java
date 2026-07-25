@@ -12,8 +12,12 @@ import java.util.Optional;
 
 public interface ShiftLogRepository extends JpaRepository<ShiftLog, Long> {
     List<ShiftLog> findByWorkerEmailIgnoreCaseOrderBySubmittedAtDesc(String workerEmail);
-    Page<ShiftLog> findBySiteOrderBySubmittedAtDesc(String site, Pageable pageable);
-    List<ShiftLog> findBySiteOrderBySubmittedAtDesc(String site);
+    // IgnoreCase added — was a case-sensitive exact match while the sibling
+    // countBySiteIgnoreCaseAndStatus below already used IgnoreCase. A worker's assignedSite and
+    // the supervisor's assignedSite differing only in casing meant this silently returned
+    // nothing, hiding every submitted shift log from the supervisor's list.
+    Page<ShiftLog> findBySiteIgnoreCaseOrderBySubmittedAtDesc(String site, Pageable pageable);
+    List<ShiftLog> findBySiteIgnoreCaseOrderBySubmittedAtDesc(String site);
 
     long countByWorkerEmailIgnoreCase(String workerEmail);
     long countBySiteIgnoreCaseAndStatus(String site, String status);

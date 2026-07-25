@@ -1,12 +1,15 @@
 package MineOpsBackend.controller;
 
 import MineOpsBackend.dto.SubmitShiftLogRequest;
+import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.ShiftLog;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.ShiftLogRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.MineralInventoryService;
 import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.PushNotificationService;
 import MineOpsBackend.util.CsvExportUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -25,9 +28,16 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 public class ShiftLogController {
+
+    // Named `logger`, not `log` — several methods below already use a local variable named
+    // `log` for the ShiftLog entity itself, which would otherwise shadow a field of the same name.
+    private static final Logger logger = LoggerFactory.getLogger(ShiftLogController.class);
 
     private static final Map<String, BigDecimal> UNIT_LIMITS = Map.of(
         "kg",     new BigDecimal("50000"),
@@ -42,20 +52,26 @@ public class ShiftLogController {
     private static final BigDecimal DEFAULT_LIMIT = new BigDecimal("100000");
 
     private final ShiftLogRepository shiftLogRepository;
+    private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
     private final MineralInventoryService inventoryService;
     private final NotificationService notificationService;
+    private final PushNotificationService pushNotificationService;
 
     public ShiftLogController(
         ShiftLogRepository shiftLogRepository,
+        AppUserRepository appUserRepository,
         AuditLogService auditLogService,
         MineralInventoryService inventoryService,
-        NotificationService notificationService
+        NotificationService notificationService,
+        PushNotificationService pushNotificationService
     ) {
         this.shiftLogRepository = shiftLogRepository;
+        this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.inventoryService = inventoryService;
         this.notificationService = notificationService;
+        this.pushNotificationService = pushNotificationService;
     }
 
     @PostMapping("/api/shift-logs")
@@ -125,7 +141,40 @@ ShiftLog saved = shiftLogRepository.save(log);
     request.mineralType() + " " + request.volumeExtracted() + request.unit() + " — " + request.zone()
 );
 
+// Previously nothing notified the supervisor/safety officer that a shift log was waiting
+// for review — approve/reject notified the worker back, but submission itself was silent.
+try {
+    notifySiteReviewers(saved, user);
+} catch (Exception e) {
+    logger.warn("Failed to notify site reviewers of shift log submission (site={}, id={}): {}",
+        user.assignedSite(), saved.getId(), e.getMessage());
+}
+
 return saved;
+    }
+
+    private void notifySiteReviewers(ShiftLog saved, AuthenticatedUser submitter) {
+        List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(submitter.assignedSite())
+            .stream()
+            .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
+            .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
+            .collect(Collectors.toList());
+
+        if (recipients.isEmpty()) return;
+
+        String title = "Shift Log Submitted — " + submitter.assignedSite();
+        String body = submitter.fullName() + " logged " + saved.getVolumeExtracted() + " " + saved.getUnit()
+            + " of " + saved.getMineralType() + " in " + saved.getZone() + ". Awaiting review.";
+
+        List<String> tokens = recipients.stream()
+            .map(AppUser::getPushToken)
+            .filter(t -> t != null && !t.isBlank())
+            .collect(Collectors.toList());
+        pushNotificationService.sendToTokens(tokens, title, body, "default");
+
+        for (AppUser recipient : recipients) {
+            notificationService.notify(recipient.getEmail(), "SHIFT_LOG", title, body, "ShiftLog", saved.getId());
+        }
     }
 
     @GetMapping("/api/shift-logs/mine")
@@ -144,7 +193,7 @@ return saved;
         @org.springframework.web.bind.annotation.RequestParam(required = false) String workerName,
         @org.springframework.web.bind.annotation.RequestParam(required = false) String status
     ) {
-        List<ShiftLog> logs = shiftLogRepository.findBySiteOrderBySubmittedAtDesc(user.assignedSite());
+        List<ShiftLog> logs = shiftLogRepository.findBySiteIgnoreCaseOrderBySubmittedAtDesc(user.assignedSite());
 
         if (dateFrom != null && !dateFrom.isBlank()) {
             java.time.LocalDate from;
@@ -252,7 +301,7 @@ return saved;
     @GetMapping("/api/shift-logs/export/csv")
     @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
     public ResponseEntity<String> exportCsv(@AuthenticationPrincipal AuthenticatedUser user) {
-        List<ShiftLog> rows = shiftLogRepository.findBySiteOrderBySubmittedAtDesc(user.assignedSite());
+        List<ShiftLog> rows = shiftLogRepository.findBySiteIgnoreCaseOrderBySubmittedAtDesc(user.assignedSite());
         StringBuilder csv = new StringBuilder();
         csv.append(CsvExportUtil.row("worker", "mineralType", "volume", "unit", "shiftDate", "status"));
         for (ShiftLog s : rows) {

@@ -97,30 +97,35 @@ public class IncidentController {
             "IncidentReport", saved.getId(),
             request.category() + " (" + request.severity() + ") in " + request.zone());
 
-        // Notify supervisors and safety officers for Serious and Critical incidents
-        if ("Serious".equals(request.severity()) || "Critical".equals(request.severity())) {
-            try {
-                String notifTitle = request.severity() + " Incident — " + user.assignedSite();
-                String notifBody = request.category() + " in " + request.zone() + " reported by " + user.fullName();
+        // Notify supervisors and safety officers for every incident report, regardless of
+        // severity — a supervisor needs to know about a Minor incident too, just not with the
+        // same urgency as a Serious/Critical one. Previously this block only ran for
+        // "Serious"/"Critical", so a Minor report (the default-selected severity in the app)
+        // silently notified no one.
+        try {
+            String notifTitle = request.severity() + " Incident — " + user.assignedSite();
+            String notifBody = request.category() + " in " + request.zone() + " reported by " + user.fullName();
+            boolean urgent = "Serious".equals(request.severity()) || "Critical".equals(request.severity());
 
-                List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
-                    .stream()
-                    .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
-                    .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
-                    .collect(Collectors.toList());
+            List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+                .stream()
+                .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
+                .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
+                .collect(Collectors.toList());
 
-                List<String> tokens = recipients.stream()
-                    .map(AppUser::getPushToken)
-                    .filter(t -> t != null && !t.isBlank())
-                    .collect(Collectors.toList());
-                pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, "sos");
+            List<String> tokens = recipients.stream()
+                .map(AppUser::getPushToken)
+                .filter(t -> t != null && !t.isBlank())
+                .collect(Collectors.toList());
+            // Only Serious/Critical bypass DND on the "sos" channel — a Minor incident shouldn't
+            // buzz a supervisor's phone at full emergency urgency, but they should still know.
+            pushNotificationService.sendToTokens(tokens, notifTitle, notifBody, urgent ? "sos" : "default");
 
-                for (AppUser recipient : recipients) {
-                    notificationService.notify(recipient.getEmail(), "INCIDENT", notifTitle, notifBody, "IncidentReport", saved.getId());
-                }
-            } catch (Exception e) {
-                log.warn("Push notification failed for incident: {}", e.getMessage());
+            for (AppUser recipient : recipients) {
+                notificationService.notify(recipient.getEmail(), "INCIDENT", notifTitle, notifBody, "IncidentReport", saved.getId());
             }
+        } catch (Exception e) {
+            log.warn("Push notification failed for incident: {}", e.getMessage());
         }
 
         return saved;
