@@ -154,13 +154,22 @@ return saved;
     }
 
     private void notifySiteReviewers(ShiftLog saved, AuthenticatedUser submitter) {
-        List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(submitter.assignedSite())
+        List<AppUser> allAtSite = appUserRepository.findByAssignedSiteIgnoreCase(submitter.assignedSite());
+        List<AppUser> recipients = allAtSite
             .stream()
             .filter(u -> "supervisor".equals(u.getRole()) || "safetyOfficer".equals(u.getRole()))
             .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
             .collect(Collectors.toList());
 
-        if (recipients.isEmpty()) return;
+        if (recipients.isEmpty()) {
+            logger.warn("shift log {} submitted by {} (site='{}') matched {} users at that site but ZERO "
+                + "eligible supervisor/safetyOfficer recipients — no one will be notified. Roles present: {}",
+                saved.getId(), submitter.email(), submitter.assignedSite(), allAtSite.size(),
+                allAtSite.stream().map(u -> u.getEmail() + "=" + u.getRole()
+                    + (u.getDeletedAt() != null ? "(deleted)" : "")
+                    + (Boolean.FALSE.equals(u.getActive()) ? "(inactive)" : "")).collect(Collectors.toList()));
+            return;
+        }
 
         String title = "Shift Log Submitted — " + submitter.assignedSite();
         String body = submitter.fullName() + " logged " + saved.getVolumeExtracted() + " " + saved.getUnit()
@@ -170,6 +179,9 @@ return saved;
             .map(AppUser::getPushToken)
             .filter(t -> t != null && !t.isBlank())
             .collect(Collectors.toList());
+        logger.info("shift log {} submitted by {} — notifying {} recipient(s), {} with a push token: {}",
+            saved.getId(), submitter.email(), recipients.size(), tokens.size(),
+            recipients.stream().map(AppUser::getEmail).collect(Collectors.toList()));
         pushNotificationService.sendToTokens(tokens, title, body, "default");
 
         for (AppUser recipient : recipients) {
