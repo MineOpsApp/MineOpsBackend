@@ -255,11 +255,11 @@ class MarketplaceOfferControllerTest {
     @Test
     void rejectOffer_throws403_whenWrongSite() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
         when(listingRepo.findById(1L)).thenReturn(Optional.of(activeListing("Tarkwa Mine")));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-            () -> controller.rejectOffer(supervisor(), 1L));
+            () -> controller.rejectOffer(supervisor(), 1L, null));
 
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
@@ -268,11 +268,11 @@ class MarketplaceOfferControllerTest {
     void rejectOffer_throws409_whenNotPending() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
         offer.setStatus("ACCEPTED");
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
         when(listingRepo.findById(1L)).thenReturn(Optional.of(activeListing(SITE)));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-            () -> controller.rejectOffer(supervisor(), 1L));
+            () -> controller.rejectOffer(supervisor(), 1L, null));
 
         assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
@@ -280,11 +280,11 @@ class MarketplaceOfferControllerTest {
     @Test
     void rejectOffer_marksRejectedAndAudits() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
         when(listingRepo.findById(1L)).thenReturn(Optional.of(activeListing(SITE)));
         when(offerRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        controller.rejectOffer(supervisor(), 1L);
+        controller.rejectOffer(supervisor(), 1L, null);
 
         assertThat(offer.getStatus()).isEqualTo("REJECTED");
         verify(auditLogService).record(
