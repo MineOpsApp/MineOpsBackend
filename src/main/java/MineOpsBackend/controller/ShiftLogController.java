@@ -143,11 +143,20 @@ ShiftLog saved = shiftLogRepository.save(log);
 
 // Previously nothing notified the supervisor/safety officer that a shift log was waiting
 // for review — approve/reject notified the worker back, but submission itself was silent.
+//
+// DEBUG (temporary): also writes a DEBUG_SHIFT_LOG_NOTIFY audit log entry on both the success
+// and failure path, visible in the app's own Audit Log screen. Railway's log viewer has been
+// unreliable while diagnosing this specific issue (delayed/hidden lines), so this routes the
+// same diagnostic info through a channel we've already confirmed works end-to-end. Remove once
+// the root cause is confirmed fixed.
 try {
     notifySiteReviewers(saved, user);
 } catch (Exception e) {
     logger.warn("Failed to notify site reviewers of shift log submission (site={}, id={}): {}",
         user.assignedSite(), saved.getId(), e.getMessage());
+    auditLogService.record("DEBUG_SHIFT_LOG_NOTIFY", user.role(), user.fullName(), user.email(),
+        "ShiftLog", saved.getId(),
+        "EXCEPTION: " + e.getClass().getSimpleName() + ": " + e.getMessage());
 }
 
 return saved;
@@ -162,12 +171,14 @@ return saved;
             .collect(Collectors.toList());
 
         if (recipients.isEmpty()) {
-            logger.warn("shift log {} submitted by {} (site='{}') matched {} users at that site but ZERO "
-                + "eligible supervisor/safetyOfficer recipients — no one will be notified. Roles present: {}",
-                saved.getId(), submitter.email(), submitter.assignedSite(), allAtSite.size(),
-                allAtSite.stream().map(u -> u.getEmail() + "=" + u.getRole()
+            String detail = "site='" + submitter.assignedSite() + "' matched " + allAtSite.size()
+                + " users at that site, ZERO eligible. Roles present: "
+                + allAtSite.stream().map(u -> u.getEmail() + "=" + u.getRole()
                     + (u.getDeletedAt() != null ? "(deleted)" : "")
-                    + (Boolean.FALSE.equals(u.getActive()) ? "(inactive)" : "")).collect(Collectors.toList()));
+                    + (Boolean.FALSE.equals(u.getActive()) ? "(inactive)" : "")).collect(Collectors.toList());
+            logger.warn("shift log {} submitted by {} — {}", saved.getId(), submitter.email(), detail);
+            auditLogService.record("DEBUG_SHIFT_LOG_NOTIFY", submitter.role(), submitter.fullName(), submitter.email(),
+                "ShiftLog", saved.getId(), "ZERO_RECIPIENTS: " + detail);
             return;
         }
 
@@ -179,9 +190,12 @@ return saved;
             .map(AppUser::getPushToken)
             .filter(t -> t != null && !t.isBlank())
             .collect(Collectors.toList());
+        String recipientList = recipients.stream().map(AppUser::getEmail).collect(Collectors.toList()).toString();
         logger.info("shift log {} submitted by {} — notifying {} recipient(s), {} with a push token: {}",
-            saved.getId(), submitter.email(), recipients.size(), tokens.size(),
-            recipients.stream().map(AppUser::getEmail).collect(Collectors.toList()));
+            saved.getId(), submitter.email(), recipients.size(), tokens.size(), recipientList);
+        auditLogService.record("DEBUG_SHIFT_LOG_NOTIFY", submitter.role(), submitter.fullName(), submitter.email(),
+            "ShiftLog", saved.getId(),
+            "OK: notifying " + recipients.size() + " recipient(s), " + tokens.size() + " with push token: " + recipientList);
         pushNotificationService.sendToTokens(tokens, title, body, "default");
 
         for (AppUser recipient : recipients) {
