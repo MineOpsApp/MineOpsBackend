@@ -20,7 +20,9 @@ public class HealthController {
 
     @GetMapping("/api/health")
     public Map<String, String> health() {
-        return Map.of("status", "ok");
+        // "build" marker is a temporary deploy-cache probe — if this value doesn't show up after
+        // pushing, Railway is serving a stale/cached build, not the code we just pushed.
+        return Map.of("status", "ok", "build", "debug-probe-2026-07-26-01");
     }
 
     // TEMPORARY diagnostic — no auth, aggregate counts + action/status/attempts only (no
