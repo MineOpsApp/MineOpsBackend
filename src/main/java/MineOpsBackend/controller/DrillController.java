@@ -11,6 +11,7 @@ import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.NotificationService;
 import MineOpsBackend.service.PushNotificationService;
+import MineOpsBackend.util.JobRoles;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -58,6 +59,16 @@ public class DrillController {
         @AuthenticationPrincipal AuthenticatedUser user,
         @Valid @RequestBody StartDrillRequest request
     ) {
+        // jobRole == null (not set) is treated as eligible — see MineOpsBackend.util.JobRoles —
+        // so this only blocks workers a supervisor has explicitly assigned a non-drill job role to.
+        String jobRole = appUserRepository.findByEmailIgnoreCase(user.email())
+            .map(AppUser::getJobRole)
+            .orElse(null);
+        if (!JobRoles.isDrillEligible(jobRole)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Your job role isn't set up for drill operations. Contact your supervisor if this is wrong.");
+        }
+
         DrillOperation op = drillOperationRepository.save(new DrillOperation(
             user.email(), user.fullName(), user.assignedSite(),
             request.zone(), request.equipmentCode(), request.drillType()

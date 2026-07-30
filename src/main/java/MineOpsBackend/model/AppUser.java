@@ -101,6 +101,14 @@ public class AppUser {
     @Column(length = 100)
     private String jobTitle;
 
+    // Structured job role, distinct from the free-text jobTitle above — used to gate features
+    // that shouldn't be open to every worker (e.g. drill operations). Null means "not set" and is
+    // treated as eligible everywhere this is checked, so existing workers aren't retroactively
+    // locked out of something they could already do before this field existed. Valid values live
+    // in MineOpsBackend.util.JobRoles.
+    @Column(length = 30)
+    private String jobRole;
+
     @Column(length = 20)
     private String employmentType;
 
@@ -293,6 +301,9 @@ public void setTinNumber(String v) { this.tinNumber = v; }
 
 public String getJobTitle() { return jobTitle; }
 public void setJobTitle(String v) { this.jobTitle = v; }
+
+public String getJobRole() { return jobRole; }
+public void setJobRole(String v) { this.jobRole = v; }
 
 public String getEmploymentType() { return employmentType; }
 public void setEmploymentType(String v) { this.employmentType = v; }

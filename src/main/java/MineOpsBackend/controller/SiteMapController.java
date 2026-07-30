@@ -35,6 +35,16 @@ public class SiteMapController {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No site map uploaded yet"));
     }
 
+    // Polled every ~25s by the site map view to detect changes without re-downloading the
+    // full image each time. Clients only call GET /api/site-map (full image) when uploadedAt
+    // here differs from what they already have cached.
+    @GetMapping("/meta")
+    @PreAuthorize("hasAnyAuthority('ROLE_WORKER','ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public SiteMapRepository.SiteMapMeta getSiteMapMeta(@AuthenticationPrincipal AuthenticatedUser user) {
+        return siteMapRepository.findMetaBySiteIgnoreCase(user.assignedSite())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No site map uploaded yet"));
+    }
+
     @PostMapping
     @PreAuthorize("hasAuthority('ROLE_SUPERVISOR')")
     public SiteMap uploadSiteMap(

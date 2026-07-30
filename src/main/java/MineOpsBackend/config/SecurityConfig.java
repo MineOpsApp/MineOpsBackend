@@ -32,7 +32,12 @@ public class SecurityConfig {
             .cors((cors) -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement((session) -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests((requests) -> requests
-                .requestMatchers("/api/auth/**", "/api/health", "/api/guest/redeem", "/api/debug/**").permitAll()
+                // Paystack calls the webhook directly (no JWT); its own HMAC signature check inside
+                // MarketplaceTransactionController.paystackWebhook is what actually authenticates it.
+                // The callback page is just a static "you can close this" landing page for the
+                // buyer's browser after checkout, also unauthenticated by nature.
+                .requestMatchers("/api/auth/**", "/api/health", "/api/guest/redeem",
+                    "/api/webhooks/paystack", "/api/webhooks/paystack/callback").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

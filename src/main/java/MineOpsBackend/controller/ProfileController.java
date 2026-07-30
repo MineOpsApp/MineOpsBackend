@@ -6,6 +6,7 @@ import MineOpsBackend.repository.CertificationRepository;
 import MineOpsBackend.repository.EmergencyContactRepository;
 import MineOpsBackend.repository.ShiftLogRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.util.JobRoles;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -209,6 +210,14 @@ public class ProfileController {
             Object v = body.get("jobTitle");
             worker.setJobTitle(v == null || v.toString().isBlank() ? null : v.toString().trim());
         }
+        if (body.containsKey("jobRole")) {
+            Object v = body.get("jobRole");
+            String jr = v == null ? null : v.toString().trim().toUpperCase();
+            if (jr != null && !jr.isBlank() && !JobRoles.ALL.contains(jr))
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "jobRole must be one of: " + String.join(", ", JobRoles.ALL));
+            worker.setJobRole(jr == null || jr.isBlank() ? null : jr);
+        }
         if (body.containsKey("employmentType")) {
             Object v = body.get("employmentType");
             String et = v == null ? null : v.toString().trim().toUpperCase();
@@ -303,6 +312,7 @@ public class ProfileController {
         m.put("ssnitNumber", u.getSsnitNumber());
         m.put("tinNumber", u.getTinNumber());
         m.put("jobTitle", u.getJobTitle());
+        m.put("jobRole", u.getJobRole());
         m.put("employmentType", u.getEmploymentType());
         m.put("fitForDuty", !Boolean.FALSE.equals(u.getFitForDuty()));
         return m;
