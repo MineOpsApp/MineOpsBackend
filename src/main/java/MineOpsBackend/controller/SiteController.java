@@ -40,8 +40,12 @@ public class SiteController {
     // own full record (including insurance fields) is available via /sites/mine. Detach before
     // nulling so this never gets flushed back to the DB (open-in-view keeps the session alive
     // for the whole request).
+    //
+    // Deliberately public (see SecurityConfig — GET /api/sites is in permitAll): the unauthenticated
+    // registration screen needs the real list of sites for its "Assigned Site" picker, instead of
+    // the hardcoded list that used to drift out of sync with what's actually seeded. Nothing sensitive
+    // is exposed here since insurance fields are already stripped above for every caller.
     @GetMapping("/api/sites")
-    @PreAuthorize("isAuthenticated()")
     public List<Site> getSites() {
         List<Site> sites = siteRepository.findAll();
         sites.forEach(s -> {

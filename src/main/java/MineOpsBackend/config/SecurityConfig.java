@@ -4,6 +4,7 @@ import MineOpsBackend.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -38,6 +39,12 @@ public class SecurityConfig {
                 // buyer's browser after checkout, also unauthenticated by nature.
                 .requestMatchers("/api/auth/**", "/api/health", "/api/guest/redeem",
                     "/api/webhooks/paystack", "/api/webhooks/paystack/callback").permitAll()
+                // The unauthenticated registration screen needs the real site list for its
+                // "Assigned Site" picker (see SiteController.getSites — insurance/financial
+                // fields are already stripped there for every caller, so this only exposes
+                // non-sensitive fields like site name/id). Exact-path + GET only, so it doesn't
+                // widen access to /api/sites/mine or the PATCH endpoints under /api/sites/**.
+                .requestMatchers(HttpMethod.GET, "/api/sites").permitAll()
                 .anyRequest().authenticated()
             )
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
