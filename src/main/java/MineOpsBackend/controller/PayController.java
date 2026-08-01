@@ -83,10 +83,9 @@ public class PayController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Only DRAFT cycles can receive first approval (current status: " + cycle.getStatus() + ")");
 
-        if (user.email().equalsIgnoreCase(cycle.getCreatedBy()))
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                "The person who created this pay cycle cannot also give the first approval");
-
+        // Previously blocked the creator from also giving first approval (maker-checker
+        // segregation of duties). Removed by request: many sites run with a single supervisor
+        // account, and that supervisor is now trusted to handle a pay cycle end to end.
         cycle.setManagerApprovedBy(user.email());
         cycle.setManagerApprovedAt(LocalDateTime.now());
         cycle.setStatus("MANAGER_APPROVED");
@@ -111,10 +110,8 @@ public class PayController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                 "Cycle must have first approval before second sign-off");
 
-        if (user.email().equalsIgnoreCase(cycle.getManagerApprovedBy()))
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                "Second approver must be a different person from the first approver");
-
+        // Previously required the second approver to be a different person from the first
+        // (maker-checker). Removed by request — see the matching note in approveManager().
         cycle.setSupervisorApprovedBy(user.email());
         cycle.setSupervisorApprovedAt(LocalDateTime.now());
 
