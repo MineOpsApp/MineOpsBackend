@@ -14,6 +14,10 @@ public class VisitorVisit {
     private Long guestUserId;
     private String hostName;
 
+    // Only set when the supervisor picked the host from the site personnel directory (rather
+    // than typing a free-text name) — that's what lets create() actually notify them.
+    private String hostEmail;
+
     @Column(length = 500)
     private String purposeOfVisit;
 
@@ -65,6 +69,15 @@ public class VisitorVisit {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    // Not a column — VisitorVisit only stores guestUserId. The controller resolves this from
+    // AppUser at read/write time and sets it here purely so it rides along in the JSON response;
+    // no migration needed to show the supervisor who VIS-000123 actually is.
+    @Transient
+    private String guestFullName;
+
+    public String getGuestFullName() { return guestFullName; }
+    public void setGuestFullName(String v) { this.guestFullName = v; }
+
     public Long getId() { return id; }
 
     public Long getGuestUserId() { return guestUserId; }
@@ -72,6 +85,9 @@ public class VisitorVisit {
 
     public String getHostName() { return hostName; }
     public void setHostName(String v) { this.hostName = v; }
+
+    public String getHostEmail() { return hostEmail; }
+    public void setHostEmail(String v) { this.hostEmail = v; }
 
     public String getPurposeOfVisit() { return purposeOfVisit; }
     public void setPurposeOfVisit(String v) { this.purposeOfVisit = v; }

@@ -102,6 +102,10 @@ public class DrillController {
         if (!op.getWorkerEmail().equalsIgnoreCase(user.email())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot sign off another worker's drill operation");
         }
+        if ("STOPPED".equals(op.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "A safety officer has stopped this drill operation — it cannot continue.");
+        }
 
         LocalDateTime now = LocalDateTime.now();
         switch (request.step()) {
@@ -210,13 +214,16 @@ public class DrillController {
                 id, op.getSite(), user.assignedSite(), user.email());
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Drill operation belongs to a different site");
         }
-        if (!Boolean.TRUE.equals(op.getStepDrillingComplete())) {
-            log.warn("blast-decision failed: drilling step not complete on drill {} (user={})", id, user.email());
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Worker hasn't completed the drilling step yet");
-        }
+        // A safety officer can stop, hold, or clear a drill at any stage — setup and drilling
+        // included, not only once it has reached the blasting step. The one thing that still
+        // ends the window for a decision is the blasting step itself already being signed off.
         if (Boolean.TRUE.equals(op.getStepBlastingComplete())) {
             log.warn("blast-decision failed: blasting already signed off on drill {} (user={})", id, user.email());
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Blasting step is already signed off");
+        }
+        if ("STOPPED".equals(op.getStatus())) {
+            log.warn("blast-decision failed: drill {} is already stopped (user={})", id, user.email());
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This drill operation has already been stopped");
         }
 
         op.setBlastApprovedBy(user.email());
@@ -224,6 +231,12 @@ public class DrillController {
         op.setBlastApprovedAt(LocalDateTime.now());
         op.setBlastDecision(request.decision());
         op.setBlastDecisionNote(request.note() != null && !request.note().isBlank() ? request.note().trim() : null);
+        // STOP ends the operation outright — the worker can't just wait it out and continue,
+        // and it's what lets a stopped drill fall out of the "awaiting approval" queue instead
+        // of sitting there forever with a decision that can never become APPROVED again.
+        if ("STOP".equals(request.decision())) {
+            op.setStatus("STOPPED");
+        }
         DrillOperation saved = drillOperationRepository.save(op);
 
         auditLogService.record("DRILL_BLAST_" + request.decision(), user.role(), user.fullName(), user.email(),

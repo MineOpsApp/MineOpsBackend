@@ -1,0 +1,1 @@
+ALTER TABLE visitor_visits ADD COLUMN IF NOT EXISTS host_email VARCHAR(255);

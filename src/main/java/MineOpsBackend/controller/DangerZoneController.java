@@ -107,9 +107,12 @@ public class DangerZoneController {
             String notifTitle = "Danger Zone — " + saved.getZoneName();
             String notifBody = saved.getRiskLevel() + " risk zone active at " + saved.getSite() + ". Avoid this area.";
 
+            // Site personnel only — a guest passing through with a host shouldn't get an alert
+            // implying they're part of the site's crew.
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .filter(u -> List.of("worker", "supervisor", "safetyOfficer").contains(u.getRole()))
                 .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .collect(Collectors.toList());
 
@@ -203,6 +206,21 @@ public class DangerZoneController {
             "DangerZone",
             saved.getId(),
             saved.getZoneName() + " (" + saved.getLatitude() + ", " + saved.getLongitude() + ")"
+        );
+        return saved;
+    }
+
+    // The list screen already has a full "Cleared" section waiting for zones in this state —
+    // there was just never an action that could put one there.
+    @PostMapping("/api/danger-zones/{id}/clear")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public DangerZone clearZone(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user) {
+        DangerZone zone = findAndCheckSite(id, user);
+        zone.setStatus("Cleared");
+        DangerZone saved = dangerZoneRepository.save(zone);
+        auditLogService.record(
+            "ZONE_CLEARED", user.role(), user.fullName(), user.email(),
+            "DangerZone", saved.getId(), saved.getZoneName()
         );
         return saved;
     }

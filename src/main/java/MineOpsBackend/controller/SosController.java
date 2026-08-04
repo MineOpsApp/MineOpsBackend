@@ -13,10 +13,13 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -93,9 +96,12 @@ public class SosController {
             String notifTitle = "SOS ALERT — " + site;
             String notifBody = user.fullName() + " has triggered an emergency alert. Respond immediately.";
 
+            // Site personnel only — a guest or buyer account sharing this site should never
+            // receive an emergency broadcast that implies they're part of the crew.
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(site)
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .filter(u -> List.of("worker", "supervisor", "safetyOfficer").contains(u.getRole()))
                 .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .collect(Collectors.toList());
 
@@ -122,5 +128,25 @@ public class SosController {
             List.of(user.assignedSite(), "Unassigned"),
             pageable
         );
+    }
+
+    // Without this, an SOS alert has no way to ever leave the "Open" state it's created with —
+    // it stays permanently flagged as an active emergency in the app.
+    @PostMapping("/api/sos/{id}/resolve")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public SosAlert resolveAlert(@PathVariable Long id, @AuthenticationPrincipal AuthenticatedUser user) {
+        SosAlert alert = sosAlertRepository.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "SOS alert not found"));
+        if (!"Unassigned".equals(alert.getSite()) && user.assignedSite() != null
+            && !alert.getSite().equalsIgnoreCase(user.assignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This alert is not from your site");
+        }
+        alert.setStatus("Resolved");
+        SosAlert saved = sosAlertRepository.save(alert);
+        auditLogService.record(
+            "SOS_RESOLVED", user.role(), user.fullName(), user.email(),
+            "SosAlert", saved.getId(), saved.getSite() + ": " + saved.getMessage()
+        );
+        return saved;
     }
 }

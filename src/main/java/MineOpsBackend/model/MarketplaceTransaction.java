@@ -59,6 +59,13 @@ public class MarketplaceTransaction {
     @Column(length = 30)
     private String paymentChannel;
 
+    // Post-delivery confirmation: replaces the old "rate to close" flow. Each side confirms
+    // independently once the batch has been delivered; once both have, `closed` flips to true
+    // and the transaction drops out of the pending/ongoing views.
+    private LocalDateTime buyerConfirmedAt;
+    private LocalDateTime supervisorConfirmedAt;
+    private Boolean closed = false;
+
     public MarketplaceTransaction() {}
 
     public Long getId() { return id; }
@@ -97,4 +104,11 @@ public class MarketplaceTransaction {
     public void setPaidAt(LocalDateTime v) { this.paidAt = v; }
     public String getPaymentChannel() { return paymentChannel; }
     public void setPaymentChannel(String v) { this.paymentChannel = v; }
+
+    public LocalDateTime getBuyerConfirmedAt() { return buyerConfirmedAt; }
+    public void setBuyerConfirmedAt(LocalDateTime v) { this.buyerConfirmedAt = v; }
+    public LocalDateTime getSupervisorConfirmedAt() { return supervisorConfirmedAt; }
+    public void setSupervisorConfirmedAt(LocalDateTime v) { this.supervisorConfirmedAt = v; }
+    public Boolean getClosed() { return closed; }
+    public void setClosed(Boolean v) { this.closed = v; }
 }

@@ -74,10 +74,14 @@ public class WorkerController {
         this.pushNotificationService = pushNotificationService;
     }
 
-    /** Supervisors on the worker's site — the audience for equipment fault/maintenance alerts. */
+    /**
+     * Supervisors and safety officers on the worker's site — the audience for equipment
+     * fault/maintenance alerts. A faulty or unmaintained tool is a safety concern, not just an
+     * operations one, so safety officers must see these too.
+     */
     private List<AppUser> supervisorsOnSite(String site) {
         return appUserRepository.findByAssignedSiteIgnoreCase(site).stream()
-            .filter(u -> "supervisor".equals(u.getRole()))
+            .filter(u -> List.of("supervisor", "safetyOfficer").contains(u.getRole()))
             .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
             .collect(Collectors.toList());
     }

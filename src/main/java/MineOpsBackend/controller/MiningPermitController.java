@@ -51,6 +51,8 @@ public class MiningPermitController {
             permit.setMinisterialReviewStatus((String) body.get("ministerialReviewStatus"));
         if (body.containsKey("epaPermitObtained"))
             permit.setEpaPermitObtained(Boolean.parseBoolean(String.valueOf(body.get("epaPermitObtained"))));
+        if (body.containsKey("photoData"))
+            permit.setPhotoData((String) body.get("photoData"));
 
         permit.setUpdatedByEmail(user.email());
         permit.setUpdatedAt(LocalDateTime.now());

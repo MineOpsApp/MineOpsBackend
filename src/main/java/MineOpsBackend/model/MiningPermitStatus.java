@@ -21,6 +21,9 @@ public class MiningPermitStatus {
     private String updatedByEmail;
     private LocalDateTime updatedAt;
 
+    @Column(columnDefinition = "TEXT")
+    private String photoData;
+
     public MiningPermitStatus() {}
 
     public Long getId() { return id; }
@@ -38,4 +41,6 @@ public class MiningPermitStatus {
     public void setUpdatedByEmail(String v) { this.updatedByEmail = v; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime v) { this.updatedAt = v; }
+    public String getPhotoData() { return photoData; }
+    public void setPhotoData(String v) { this.photoData = v; }
 }

@@ -117,6 +117,80 @@ public class MarketplaceTransactionController {
         return saved;
     }
 
+    // Replaces the old "rate to close" flow. Once a batch is DELIVERED, buyer and supervisor
+    // each confirm independently; once both have, the transaction is flagged closed and drops
+    // out of the pending/ongoing views on both sides.
+    @PostMapping("/api/marketplace/transactions/{id}/confirm")
+    @PreAuthorize("hasAnyAuthority('ROLE_BUYER','ROLE_SUPERVISOR')")
+    public MarketplaceTransaction confirmTransaction(
+        @AuthenticationPrincipal AuthenticatedUser user,
+        @PathVariable Long id
+    ) {
+        MarketplaceTransaction tx = transactionRepo.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Transaction not found"));
+
+        boolean isBuyer = "buyer".equals(user.role()) && tx.getBuyerEmail().equalsIgnoreCase(user.email());
+        boolean isSupervisor = "supervisor".equals(user.role())
+            && user.assignedSite() != null && user.assignedSite().equalsIgnoreCase(tx.getSite());
+        if (!isBuyer && !isSupervisor) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not a party to this transaction");
+        }
+        if (!"DELIVERED".equals(tx.getBatchStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Can only confirm delivered transactions");
+        }
+        if (Boolean.TRUE.equals(tx.getClosed())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "This transaction is already closed");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (isBuyer) {
+            if (tx.getBuyerConfirmedAt() != null)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "You've already confirmed this transaction");
+            tx.setBuyerConfirmedAt(now);
+        } else {
+            if (tx.getSupervisorConfirmedAt() != null)
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "You've already confirmed this transaction");
+            tx.setSupervisorConfirmedAt(now);
+        }
+
+        boolean nowClosed = tx.getBuyerConfirmedAt() != null && tx.getSupervisorConfirmedAt() != null;
+        if (nowClosed) tx.setClosed(true);
+
+        MarketplaceTransaction saved = transactionRepo.save(tx);
+
+        auditLogService.record("TRANSACTION_CONFIRMED", user.role(), user.fullName(), user.email(),
+            "MARKETPLACE_TRANSACTION", id, isBuyer ? "buyer confirmed" : "supervisor confirmed");
+
+        if (nowClosed) {
+            auditLogService.record("TRANSACTION_CLOSED", user.role(), user.fullName(), user.email(),
+                "MARKETPLACE_TRANSACTION", id, "both parties confirmed");
+            String title = "Transaction Complete";
+            String body = saved.getMineralType() + " (Txn #" + saved.getId() + ") is now complete — both parties confirmed delivery.";
+            notificationService.notify(saved.getBuyerEmail(), "TRANSACTION", title, body, "MarketplaceTransaction", saved.getId());
+            userRepo.findByEmailIgnoreCase(saved.getBuyerEmail()).ifPresent(u -> pushToken(u, title, body));
+            for (AppUser recipient : userRepo.findByRoleInAndAssignedSiteIgnoreCase(List.of("supervisor"), saved.getSite())) {
+                notificationService.notify(recipient.getEmail(), "TRANSACTION", title, body, "MarketplaceTransaction", saved.getId());
+                pushToken(recipient, title, body);
+            }
+        } else {
+            // Only one side has confirmed so far — nudge the other party.
+            String title = "Confirmation Needed";
+            String confirmerLabel = isBuyer ? "The buyer" : "Your supervisor";
+            String body = confirmerLabel + " confirmed delivery of " + saved.getMineralType() + " (Txn #" + saved.getId() + "). Confirm on your side to close it out.";
+            if (isBuyer) {
+                for (AppUser recipient : userRepo.findByRoleInAndAssignedSiteIgnoreCase(List.of("supervisor"), saved.getSite())) {
+                    notificationService.notify(recipient.getEmail(), "TRANSACTION", title, body, "MarketplaceTransaction", saved.getId());
+                    pushToken(recipient, title, body);
+                }
+            } else {
+                notificationService.notify(saved.getBuyerEmail(), "TRANSACTION", title, body, "MarketplaceTransaction", saved.getId());
+                userRepo.findByEmailIgnoreCase(saved.getBuyerEmail()).ifPresent(u -> pushToken(u, title, body));
+            }
+        }
+
+        return saved;
+    }
+
     @PostMapping("/api/marketplace/transactions/{id}/initiate-payment")
     @PreAuthorize("hasAuthority('ROLE_BUYER')")
     public Map<String, Object> initiatePayment(

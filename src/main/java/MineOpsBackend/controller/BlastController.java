@@ -83,9 +83,12 @@ public class BlastController {
             String notifTitle = "Blast Scheduled — " + request.zone();
             String notifBody = "Blasting in " + request.zone() + " in " + minutesUntil + " minutes. Clear the area immediately.";
 
+            // Site personnel only — guests/buyers on the same site shouldn't get an alert that
+            // implies they're part of the crew clearing a blast zone.
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .filter(u -> List.of("worker", "supervisor", "safetyOfficer").contains(u.getRole()))
                 .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .collect(Collectors.toList());
 
@@ -147,6 +150,7 @@ public class BlastController {
             List<AppUser> recipients = appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
                 .stream()
                 .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+                .filter(u -> List.of("worker", "supervisor", "safetyOfficer").contains(u.getRole()))
                 .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
                 .collect(Collectors.toList());
 

@@ -5,6 +5,7 @@ import MineOpsBackend.model.VisitorVisit;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.VisitorVisitRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.NotificationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,10 +23,16 @@ public class VisitorVisitController {
 
     private final VisitorVisitRepository visitRepo;
     private final AppUserRepository userRepo;
+    private final NotificationService notificationService;
 
-    public VisitorVisitController(VisitorVisitRepository visitRepo, AppUserRepository userRepo) {
+    public VisitorVisitController(
+        VisitorVisitRepository visitRepo,
+        AppUserRepository userRepo,
+        NotificationService notificationService
+    ) {
         this.visitRepo = visitRepo;
         this.userRepo = userRepo;
+        this.notificationService = notificationService;
     }
 
     @PostMapping
@@ -41,9 +48,19 @@ public class VisitorVisitController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Guest belongs to a different site");
         }
 
+        // If the supervisor picked a host from the site directory (rather than typing a free-text
+        // name), resolve them so both the host and the guest can be notified below.
+        String hostEmail = getString(body, "hostEmail");
+        AppUser hostUser = hostEmail != null
+            ? userRepo.findByEmailIgnoreCase(hostEmail)
+                .filter(u -> u.getAssignedSite() != null && u.getAssignedSite().equalsIgnoreCase(actor.assignedSite()))
+                .orElse(null)
+            : null;
+
         VisitorVisit visit = new VisitorVisit();
         visit.setGuestUserId(guestUserId);
-        visit.setHostName(getString(body, "hostName"));
+        visit.setHostName(hostUser != null ? hostUser.getFullName() : getString(body, "hostName"));
+        visit.setHostEmail(hostUser != null ? hostUser.getEmail() : null);
         visit.setPurposeOfVisit(getString(body, "purposeOfVisit"));
         // Always use the actor's own site — never trust a client-supplied site value for scoping.
         visit.setAssignedSite(actor.assignedSite());
@@ -63,7 +80,29 @@ public class VisitorVisitController {
         // Auto-generate visitor pass number: VIS-000123 style
         VisitorVisit saved = visitRepo.save(visit);
         saved.setVisitorPassNumber("VIS-" + String.format("%06d", saved.getId()));
-        return visitRepo.save(saved);
+        saved = visitRepo.save(saved);
+        saved.setGuestFullName(guest.getFullName());
+
+        try {
+            if (hostUser != null) {
+                notificationService.notify(
+                    hostUser.getEmail(), "VISITOR_HOST",
+                    "You've been assigned as a host",
+                    guest.getFullName() + " is visiting " + actor.assignedSite() + " and you've been named as their host. Meet them shortly after they check in.",
+                    "VisitorVisit", saved.getId()
+                );
+            }
+            notificationService.notify(
+                guest.getEmail(), "VISITOR_HOST",
+                "Your host is on the way",
+                (saved.getHostName() != null ? saved.getHostName() : "Your host") + " will meet you shortly during your visit to " + actor.assignedSite() + ".",
+                "VisitorVisit", saved.getId()
+            );
+        } catch (Exception e) {
+            // Visit creation must not fail because a notification couldn't be written.
+        }
+
+        return saved;
     }
 
     @GetMapping
@@ -71,14 +110,25 @@ public class VisitorVisitController {
     public List<VisitorVisit> listForSite(@AuthenticationPrincipal AuthenticatedUser actor) {
         // Always scoped to the caller's own site — a client-supplied site param (or omitting it
         // entirely) must never be able to pull another site's visitor records.
-        return visitRepo.findByAssignedSiteOrderByVisitStartDesc(actor.assignedSite());
+        List<VisitorVisit> visits = visitRepo.findByAssignedSiteOrderByVisitStartDesc(actor.assignedSite());
+        // Per-request memoized lookup so a site with many visits doesn't re-query the same
+        // repeat guest once per row (same pattern as EquipmentIssuesController.resolveSite).
+        java.util.Map<Long, String> nameById = new java.util.LinkedHashMap<>();
+        for (VisitorVisit v : visits) {
+            String name = nameById.computeIfAbsent(v.getGuestUserId(), id ->
+                userRepo.findById(id).map(AppUser::getFullName).orElse(null));
+            v.setGuestFullName(name);
+        }
+        return visits;
     }
 
     @GetMapping("/my")
     @PreAuthorize("hasAuthority('ROLE_GUEST')")
     public VisitorVisit getMyVisit(@AuthenticationPrincipal AuthenticatedUser user) {
-        return visitRepo.findFirstByGuestUserIdOrderByCreatedAtDesc(user.id())
+        VisitorVisit visit = visitRepo.findFirstByGuestUserIdOrderByCreatedAtDesc(user.id())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No visit record found"));
+        visit.setGuestFullName(user.fullName());
+        return visit;
     }
 
     @PostMapping("/{id}/check-in")
@@ -89,7 +139,9 @@ public class VisitorVisitController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Induction must be completed before check-in.");
         visit.setCheckInAt(LocalDateTime.now());
         visit.setStatus("CHECKED_IN");
-        return visitRepo.save(visit);
+        VisitorVisit saved = visitRepo.save(visit);
+        resolveGuestName(saved);
+        return saved;
     }
 
     @PostMapping("/{id}/check-out")
@@ -105,7 +157,9 @@ public class VisitorVisitController {
         if (body != null) {
             if (body.containsKey("zonesVisited")) visit.setZonesVisited(getString(body, "zonesVisited"));
         }
-        return visitRepo.save(visit);
+        VisitorVisit saved = visitRepo.save(visit);
+        resolveGuestName(saved);
+        return saved;
     }
 
     @PostMapping("/{id}/induction")
@@ -137,7 +191,13 @@ public class VisitorVisitController {
             visit.setPpeIssued(Boolean.TRUE.equals(body.get("ppeIssued")));
         if (body.containsKey("ppeItems"))
             visit.setPpeItems(getString(body, "ppeItems"));
-        return visitRepo.save(visit);
+        VisitorVisit saved = visitRepo.save(visit);
+        resolveGuestName(saved);
+        return saved;
+    }
+
+    private void resolveGuestName(VisitorVisit visit) {
+        userRepo.findById(visit.getGuestUserId()).map(AppUser::getFullName).ifPresent(visit::setGuestFullName);
     }
 
     private VisitorVisit findOrThrow(Long id) {

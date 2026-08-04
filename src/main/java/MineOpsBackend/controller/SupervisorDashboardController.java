@@ -111,7 +111,13 @@ public class SupervisorDashboardController {
     }
 
     private Map<String, Object> computeSiteSummary(String site) {
-        long hazardCount = hazardRepo.findBySiteOrderByCreatedAtDesc(site).size();
+        // Every hazard ever reported at the site, not just the open ones — a cleared hazard
+        // never left this count, which is why "active hazards" on the dashboard never dropped
+        // even after being cleared. Matches the same CLEARED-exclusion HazardController already
+        // uses for its own active-hazards view.
+        long hazardCount = hazardRepo.findBySiteOrderByCreatedAtDesc(site).stream()
+            .filter(h -> !"CLEARED".equalsIgnoreCase(h.getStatus()))
+            .count();
         long noticeCount = noticeRepo.countBySiteIgnoreCase(site);
         long workersOnSite = attendanceRepo.countBySiteIgnoreCaseAndStatus(site, "ON_SITE");
         long pendingShiftLogs = shiftLogRepo.countBySiteIgnoreCaseAndStatus(site, "PENDING");
