@@ -162,7 +162,7 @@ public class MarketplaceOfferController {
     }
 
     @PostMapping("/api/marketplace/offers/{id}/counter")
-    @PreAuthorize("hasAuthority('ROLE_SUPERVISOR')")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR', 'ROLE_BUYER')")
     @Transactional
     public MarketplaceOffer counterOffer(
         @AuthenticationPrincipal AuthenticatedUser user,
@@ -173,8 +173,26 @@ public class MarketplaceOfferController {
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Offer not found"));
         MineralListing listing = listingRepo.findById(original.getListingId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Listing not found"));
-        if (!listing.getSite().equalsIgnoreCase(user.assignedSite())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Offer belongs to a different site");
+        // Same turn-based gating as accept/reject: whoever proposed the current PENDING round is
+        // waiting on the other side, and only the other side may counter it back.
+        boolean isSupervisor = "supervisor".equals(user.role());
+        String nextProposer;
+        if (isSupervisor) {
+            if (!listing.getSite().equalsIgnoreCase(user.assignedSite())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Offer belongs to a different site");
+            }
+            if (!"BUYER".equals(original.getProposedByRole())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Waiting on the buyer to respond to this offer");
+            }
+            nextProposer = "SUPERVISOR";
+        } else {
+            if (!original.getBuyerEmail().equalsIgnoreCase(user.email())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your offer");
+            }
+            if (!"SUPERVISOR".equals(original.getProposedByRole())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Waiting on the supervisor to respond to this offer");
+            }
+            nextProposer = "BUYER";
         }
         if (!"PENDING".equals(original.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Offer is not in PENDING state");
@@ -203,11 +221,16 @@ public class MarketplaceOfferController {
         counter.setOfferQuantity(counterQuantity);
         counter.setMessage((String) body.get("message"));
         counter.setStatus("PENDING");
-        counter.setProposedByRole("SUPERVISOR");
+        counter.setProposedByRole(nextProposer);
         counter.setCreatedAt(LocalDateTime.now());
         MarketplaceOffer saved = offerRepo.save(counter);
-        notifyBuyer(original.getBuyerEmail(), "OFFER", "Counter Offer Received",
-            "A counter offer has been made on your offer for " + listing.getMineralType() + ".", "MarketplaceOffer", saved.getId());
+        if (isSupervisor) {
+            notifyBuyer(original.getBuyerEmail(), "OFFER", "Counter Offer Received",
+                "A counter offer has been made on your offer for " + listing.getMineralType() + ".", "MarketplaceOffer", saved.getId());
+        } else {
+            notifySiteSupervisors(listing.getSite(), "OFFER", "Counter Offer Received",
+                original.getBuyerName() + " sent a counter offer for " + listing.getMineralType() + ".", "MarketplaceOffer", saved.getId());
+        }
         auditLogService.record("OFFER_COUNTERED", user.role(), user.fullName(), user.email(),
             "MARKETPLACE_OFFER", id, "counter=" + saved.getId());
         return saved;

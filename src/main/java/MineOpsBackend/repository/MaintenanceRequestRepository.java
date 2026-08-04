@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface MaintenanceRequestRepository extends JpaRepository<MaintenanceRequest, Long> {
     List<MaintenanceRequest> findByWorkerEmailIgnoreCaseOrderByCreatedAtDesc(String workerEmail);
+    List<MaintenanceRequest> findAllByOrderByCreatedAtDesc();
 }

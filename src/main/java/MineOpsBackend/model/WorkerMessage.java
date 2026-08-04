@@ -91,6 +91,7 @@ public class WorkerMessage {
     public String getRepliedByEmail() { return repliedByEmail; }
     public String getRepliedByName() { return repliedByName; }
 
+    public void setInitiatedBy(String initiatedBy) { this.initiatedBy = initiatedBy; }
     public void setReply(String reply) { this.reply = reply; }
     public void setRepliedAt(LocalDateTime repliedAt) { this.repliedAt = repliedAt; }
     public void setReadAt(LocalDateTime readAt) { this.readAt = readAt; }

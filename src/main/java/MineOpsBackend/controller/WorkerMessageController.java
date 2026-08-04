@@ -100,8 +100,12 @@ public class WorkerMessageController {
         AppUser supervisor = userRepo.findById(auth.id())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         if (supervisor.getAssignedSite() == null) return List.of();
+        // STAFF_PEER (supervisor <-> safety officer) threads are private 1:1 conversations, not
+        // shared site-wide worker coverage — kept out of this feed and served via /peers instead.
         return messageRepo.findBySiteIgnoreCaseOrderByCreatedAtDesc(supervisor.getAssignedSite())
-            .stream().map(this::toMap).collect(Collectors.toList());
+            .stream()
+            .filter(m -> !"STAFF_PEER".equals(m.getInitiatedBy()))
+            .map(this::toMap).collect(Collectors.toList());
     }
 
     @GetMapping("/site-workers")
@@ -120,6 +124,140 @@ public class WorkerMessageController {
                 return m;
             })
             .collect(Collectors.toList());
+    }
+
+    // ---- Supervisor <-> Safety Officer peer messaging ----------------------------------------
+    // Same site, opposite/either staff role. Kept as a distinct "STAFF_PEER" initiatedBy value
+    // (rather than reusing "STAFF", which already means staff-to-worker) so the existing worker
+    // inbox, unread counts, and the generic /reply guard below stay unambiguous.
+
+    @GetMapping("/site-staff")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public List<Map<String, Object>> getSiteStaffForMessaging(@AuthenticationPrincipal AuthenticatedUser auth) {
+        AppUser staff = userRepo.findById(auth.id())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        if (staff.getAssignedSite() == null) return List.of();
+
+        List<AppUser> peers = new java.util.ArrayList<>();
+        peers.addAll(userRepo.findByRoleAndAssignedSiteIgnoreCase("supervisor", staff.getAssignedSite()));
+        peers.addAll(userRepo.findByRoleAndAssignedSiteIgnoreCase("safetyOfficer", staff.getAssignedSite()));
+
+        return peers.stream()
+            .filter(p -> !p.getEmail().equalsIgnoreCase(auth.email()))
+            .filter(p -> p.getDeletedAt() == null && !Boolean.FALSE.equals(p.getActive()))
+            .map(p -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("email", p.getEmail());
+                m.put("fullName", p.getFullName());
+                m.put("role", p.getRole());
+                return m;
+            })
+            .collect(Collectors.toList());
+    }
+
+    @GetMapping("/peers")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public List<Map<String, Object>> getPeerMessages(@AuthenticationPrincipal AuthenticatedUser auth) {
+        return messageRepo.findBySenderEmailIgnoreCaseOrRecipientEmailIgnoreCaseOrderByCreatedAtDesc(
+                auth.email(), auth.email())
+            .stream()
+            .filter(m -> "STAFF_PEER".equals(m.getInitiatedBy()))
+            .map(this::toMap).collect(Collectors.toList());
+    }
+
+    @PostMapping("/to-staff")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public Map<String, Object> sendToStaff(
+        @AuthenticationPrincipal AuthenticatedUser auth,
+        @RequestBody Map<String, String> body
+    ) {
+        String staffEmail = body.get("staffEmail");
+        String content = body.get("content");
+        if (staffEmail == null || staffEmail.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipient is required");
+        }
+        if (content == null || content.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message cannot be empty");
+        }
+        if (content.length() > 500) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Message must be 500 characters or less");
+        }
+        if (staffEmail.trim().equalsIgnoreCase(auth.email())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "You cannot message yourself");
+        }
+
+        AppUser sender = userRepo.findById(auth.id())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+        AppUser recipient = userRepo.findByEmailIgnoreCase(staffEmail.trim())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Recipient not found"));
+
+        if (!"supervisor".equals(recipient.getRole()) && !"safetyOfficer".equals(recipient.getRole())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipient must be a supervisor or safety officer");
+        }
+        if (recipient.getDeletedAt() != null || Boolean.FALSE.equals(recipient.getActive())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Recipient not found");
+        }
+        if (sender.getAssignedSite() == null || recipient.getAssignedSite() == null ||
+            !sender.getAssignedSite().equalsIgnoreCase(recipient.getAssignedSite())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "That person is not at your site");
+        }
+
+        WorkerMessage msg = new WorkerMessage(
+            sender.getEmail(), sender.getFullName(), sender.getAssignedSite(),
+            content.trim(), recipient.getEmail(), recipient.getFullName()
+        );
+        msg.setInitiatedBy("STAFF_PEER");
+        messageRepo.save(msg);
+
+        String preview = content.length() > 80 ? content.substring(0, 77) + "..." : content;
+        notificationService.notify(recipient.getEmail(), "MESSAGE",
+            sender.getFullName() + " sent you a message", preview, "WorkerMessage", msg.getId());
+        String token = recipient.getPushToken();
+        if (token != null && !token.isBlank()) {
+            pushService.sendToToken(token, sender.getFullName() + " sent you a message", preview, "default");
+        }
+
+        return toMap(msg);
+    }
+
+    @PostMapping("/{id}/peer-reply")
+    @PreAuthorize("hasAnyAuthority('ROLE_SUPERVISOR','ROLE_SAFETY_OFFICER')")
+    public Map<String, Object> peerReply(
+        @AuthenticationPrincipal AuthenticatedUser auth,
+        @PathVariable Long id,
+        @RequestBody Map<String, String> body
+    ) {
+        String reply = body.get("reply");
+        if (reply == null || reply.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reply cannot be empty");
+        }
+        if (reply.length() > 500) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reply must be 500 characters or less");
+        }
+
+        WorkerMessage msg = messageRepo.findById(id)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found"));
+
+        if (!"STAFF_PEER".equals(msg.getInitiatedBy()) || msg.getRecipientEmail() == null ||
+            !msg.getRecipientEmail().equalsIgnoreCase(auth.email())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This message was not sent to you");
+        }
+
+        msg.setReply(reply.trim());
+        msg.setRepliedAt(LocalDateTime.now());
+        messageRepo.save(msg);
+
+        String preview = reply.length() > 80 ? reply.substring(0, 77) + "..." : reply;
+        notificationService.notify(msg.getSenderEmail(), "MESSAGE",
+            msg.getRecipientName() + " replied to your message", preview, "WorkerMessage", id);
+        userRepo.findByEmailIgnoreCase(msg.getSenderEmail()).ifPresent(peer -> {
+            String token = peer.getPushToken();
+            if (token != null && !token.isBlank()) {
+                pushService.sendToToken(token, msg.getRecipientName() + " replied to your message", preview, "default");
+            }
+        });
+
+        return toMap(msg);
     }
 
     @PostMapping("/to-worker")
@@ -234,8 +372,11 @@ public class WorkerMessageController {
         WorkerMessage msg = messageRepo.findById(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Message not found"));
 
-        if ("STAFF".equals(msg.getInitiatedBy())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Use the worker-reply endpoint for staff-initiated messages");
+        if (!"WORKER".equals(msg.getInitiatedBy())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "STAFF".equals(msg.getInitiatedBy())
+                    ? "Use the worker-reply endpoint for staff-initiated messages"
+                    : "Use the peer-reply endpoint for staff-to-staff messages");
         }
 
         if (supervisor.getAssignedSite() == null ||
