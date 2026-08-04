@@ -7,6 +7,7 @@ import MineOpsBackend.repository.SiteSubscriptionRepository;
 import MineOpsBackend.repository.SubscriptionPaymentRepository;
 import MineOpsBackend.repository.SubscriptionTierRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.AuditLogService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,6 +36,7 @@ class SubscriptionControllerTest {
     @Mock SubscriptionTierRepository tierRepo;
     @Mock SiteSubscriptionRepository subscriptionRepo;
     @Mock SubscriptionPaymentRepository paymentRepo;
+    @Mock AuditLogService auditLogService;
 
     @InjectMocks SubscriptionController controller;
 

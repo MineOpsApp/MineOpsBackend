@@ -18,5 +18,6 @@ public record SubmitShiftLogRequest(
     @NotBlank(message = "Equipment name is required") String equipmentName,
     String notes,
     String shiftDate,
-    String clientRequestId
+    String clientRequestId,
+    java.util.List<String> groupMemberEmails
 ) {}

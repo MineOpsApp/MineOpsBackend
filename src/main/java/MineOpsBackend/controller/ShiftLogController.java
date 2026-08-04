@@ -3,7 +3,9 @@ package MineOpsBackend.controller;
 import MineOpsBackend.dto.SubmitShiftLogRequest;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.ShiftLog;
+import MineOpsBackend.model.ShiftLogGroupMember;
 import MineOpsBackend.repository.AppUserRepository;
+import MineOpsBackend.repository.ShiftLogGroupMemberRepository;
 import MineOpsBackend.repository.ShiftLogRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
@@ -26,8 +28,11 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,6 +43,10 @@ public class ShiftLogController {
     // Named `logger`, not `log` — several methods below already use a local variable named
     // `log` for the ShiftLog entity itself, which would otherwise shadow a field of the same name.
     private static final Logger logger = LoggerFactory.getLogger(ShiftLogController.class);
+
+    // A group can name at most this many co-workers on one entry — generous for a real work
+    // crew, small enough to keep a single log from becoming a way to pay out the whole site.
+    private static final int MAX_GROUP_SIZE = 20;
 
     private static final Map<String, BigDecimal> UNIT_LIMITS = Map.of(
         "kg",     new BigDecimal("50000"),
@@ -57,6 +66,7 @@ public class ShiftLogController {
     private final MineralInventoryService inventoryService;
     private final NotificationService notificationService;
     private final PushNotificationService pushNotificationService;
+    private final ShiftLogGroupMemberRepository groupMemberRepository;
 
     public ShiftLogController(
         ShiftLogRepository shiftLogRepository,
@@ -64,13 +74,15 @@ public class ShiftLogController {
         AuditLogService auditLogService,
         MineralInventoryService inventoryService,
         NotificationService notificationService,
-        PushNotificationService pushNotificationService
+        PushNotificationService pushNotificationService,
+        ShiftLogGroupMemberRepository groupMemberRepository
     ) {
         this.shiftLogRepository = shiftLogRepository;
         this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
         this.inventoryService = inventoryService;
         this.notificationService = notificationService;
+        this.groupMemberRepository = groupMemberRepository;
         this.pushNotificationService = pushNotificationService;
     }
 
@@ -131,6 +143,14 @@ if (request.clientRequestId() != null && !request.clientRequestId().isBlank()) {
 }
 ShiftLog saved = shiftLogRepository.save(log);
 
+        List<ShiftLogGroupMember> groupMembers = resolveGroupMembers(saved.getId(), request.groupMemberEmails(), user);
+        saved.setGroupMembers(groupMembers);
+        if (!groupMembers.isEmpty()) {
+            auditLogService.record("SHIFT_LOG_GROUP_TAGGED", user.role(), user.fullName(), user.email(),
+                "ShiftLog", saved.getId(),
+                groupMembers.stream().map(ShiftLogGroupMember::getWorkerName).collect(Collectors.joining(", ")));
+        }
+
         auditLogService.record(
     "SHIFT_LOG_SUBMITTED",
     user.role(),
@@ -160,6 +180,43 @@ try {
 }
 
 return saved;
+    }
+
+    /** Validates and persists the named co-workers for a group-logged shift, silently
+     *  dropping anyone who isn't a real, active worker on the submitter's own site — a
+     *  mistyped email should not fail the whole submission. */
+    private List<ShiftLogGroupMember> resolveGroupMembers(
+        Long shiftLogId, List<String> rawEmails, AuthenticatedUser submitter
+    ) {
+        List<ShiftLogGroupMember> members = new java.util.ArrayList<>();
+        if (rawEmails == null || rawEmails.isEmpty()) return members;
+        if (rawEmails.size() > MAX_GROUP_SIZE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "A shift log can name at most " + MAX_GROUP_SIZE + " co-workers");
+        }
+
+        Set<String> seen = new LinkedHashSet<>();
+        seen.add(submitter.email().toLowerCase());
+        for (String raw : rawEmails) {
+            if (raw == null || raw.isBlank()) continue;
+            String email = raw.trim().toLowerCase();
+            if (!seen.add(email)) continue; // dedupe, and drop the submitter's own email
+
+            AppUser member = appUserRepository.findByEmailIgnoreCase(email).orElse(null);
+            boolean eligible = member != null
+                && "worker".equals(member.getRole())
+                && member.getAssignedSite() != null
+                && member.getAssignedSite().equalsIgnoreCase(submitter.assignedSite())
+                && member.getDeletedAt() == null
+                && !Boolean.FALSE.equals(member.getActive());
+            if (!eligible) continue;
+
+            members.add(new ShiftLogGroupMember(shiftLogId, member.getEmail(), member.getFullName()));
+        }
+        if (!members.isEmpty()) {
+            groupMemberRepository.saveAll(members);
+        }
+        return members;
     }
 
     private void notifySiteReviewers(ShiftLog saved, AuthenticatedUser submitter) {
@@ -206,7 +263,39 @@ return saved;
     @GetMapping("/api/shift-logs/mine")
     @PreAuthorize("hasAuthority('ROLE_WORKER')")
     public List<ShiftLog> getMyShiftLogs(@AuthenticationPrincipal AuthenticatedUser user) {
-        return shiftLogRepository.findByWorkerEmailIgnoreCaseOrderBySubmittedAtDesc(user.email());
+        return attachGroupMembers(shiftLogRepository.findByWorkerEmailIgnoreCaseOrderBySubmittedAtDesc(user.email()));
+    }
+
+    // Every other active worker on the caller's own site — the pool a worker picks their
+    // "worked with" group from when logging shift production.
+    @GetMapping("/api/shift-logs/site-coworkers")
+    @PreAuthorize("hasAuthority('ROLE_WORKER')")
+    public List<Map<String, Object>> getSiteCoworkers(@AuthenticationPrincipal AuthenticatedUser user) {
+        if (user.assignedSite() == null) return List.of();
+        return appUserRepository.findByAssignedSiteIgnoreCase(user.assignedSite())
+            .stream()
+            .filter(u -> "worker".equals(u.getRole()))
+            .filter(u -> !u.getEmail().equalsIgnoreCase(user.email()))
+            .filter(u -> !Boolean.TRUE.equals(u.getPending()) && !Boolean.FALSE.equals(u.getActive()) && u.getDeletedAt() == null)
+            .map(u -> {
+                Map<String, Object> m = new LinkedHashMap<>();
+                m.put("email", u.getEmail());
+                m.put("fullName", u.getFullName());
+                return m;
+            })
+            .collect(Collectors.toList());
+    }
+
+    private List<ShiftLog> attachGroupMembers(List<ShiftLog> logs) {
+        List<Long> ids = logs.stream().map(ShiftLog::getId).collect(Collectors.toList());
+        if (ids.isEmpty()) return logs;
+        Map<Long, List<ShiftLogGroupMember>> byLog = groupMemberRepository.findByShiftLogIdIn(ids)
+            .stream()
+            .collect(Collectors.groupingBy(ShiftLogGroupMember::getShiftLogId));
+        for (ShiftLog log : logs) {
+            log.setGroupMembers(byLog.getOrDefault(log.getId(), List.of()));
+        }
+        return logs;
     }
 
     @GetMapping("/api/shift-logs")
@@ -251,7 +340,7 @@ return saved;
             String s = status.toUpperCase();
             logs = logs.stream().filter(l -> s.equals(l.getStatus())).collect(java.util.stream.Collectors.toList());
         }
-        return logs;
+        return attachGroupMembers(logs);
     }
 
     @PatchMapping("/api/shift-logs/{id}/approve")

@@ -5,8 +5,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
 @Table(name = "shift_logs")
@@ -36,6 +38,12 @@ public class ShiftLog {
     private LocalDateTime rejectedAt;
     private Long payCycleId;
     private String clientRequestId;
+
+    // Populated by the controller for API responses only — not a real column. Workers named
+    // as having worked alongside the submitter on this entry, who therefore also share in
+    // the pay cycle split it eventually feeds into.
+    @Transient
+    private List<ShiftLogGroupMember> groupMembers;
 
     public ShiftLog() {}
 
@@ -108,4 +116,6 @@ public class ShiftLog {
     public void setPayCycleId(Long v) { this.payCycleId = v; }
     public String getClientRequestId() { return clientRequestId; }
     public void setClientRequestId(String v) { this.clientRequestId = v; }
+    public List<ShiftLogGroupMember> getGroupMembers() { return groupMembers; }
+    public void setGroupMembers(List<ShiftLogGroupMember> v) { this.groupMembers = v; }
 }

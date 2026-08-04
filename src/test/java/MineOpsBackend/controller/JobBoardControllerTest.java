@@ -2,9 +2,13 @@ package MineOpsBackend.controller;
 
 import MineOpsBackend.model.JobInterest;
 import MineOpsBackend.model.JobPosting;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.JobInterestRepository;
 import MineOpsBackend.repository.JobPostingRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.PushNotificationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +34,10 @@ class JobBoardControllerTest {
 
     @Mock JobPostingRepository jobRepo;
     @Mock JobInterestRepository interestRepo;
+    @Mock AppUserRepository appUserRepository;
+    @Mock AuditLogService auditLogService;
+    @Mock NotificationService notificationService;
+    @Mock PushNotificationService pushNotificationService;
 
     @InjectMocks JobBoardController controller;
 

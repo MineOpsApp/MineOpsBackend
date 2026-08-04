@@ -4,10 +4,12 @@ import MineOpsBackend.dto.LogEquipmentShiftRequest;
 import MineOpsBackend.dto.ReportFaultRequest;
 import MineOpsBackend.dto.RequestMaintenanceRequest;
 import MineOpsBackend.dto.UpdateEquipmentStatusRequest;
+import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.EquipmentFault;
 import MineOpsBackend.model.EquipmentShiftLog;
 import MineOpsBackend.model.MaintenanceRequest;
 import MineOpsBackend.model.WorkerEquipment;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.EquipmentFaultRepository;
 import MineOpsBackend.repository.EquipmentShiftLogRepository;
 import MineOpsBackend.repository.HazardReportRepository;
@@ -15,7 +17,11 @@ import MineOpsBackend.repository.MaintenanceRequestRepository;
 import MineOpsBackend.repository.WorkerEquipmentRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.PushNotificationService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -29,16 +35,22 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 public class WorkerController {
+
+    private static final Logger log = LoggerFactory.getLogger(WorkerController.class);
 
     private final EquipmentFaultRepository equipmentFaultRepository;
     private final EquipmentShiftLogRepository equipmentShiftLogRepository;
     private final HazardReportRepository hazardReportRepository;
     private final MaintenanceRequestRepository maintenanceRequestRepository;
     private final WorkerEquipmentRepository workerEquipmentRepository;
+    private final AppUserRepository appUserRepository;
     private final AuditLogService auditLogService;
+    private final NotificationService notificationService;
+    private final PushNotificationService pushNotificationService;
 
     public WorkerController(
         EquipmentFaultRepository equipmentFaultRepository,
@@ -46,14 +58,44 @@ public class WorkerController {
         HazardReportRepository hazardReportRepository,
         MaintenanceRequestRepository maintenanceRequestRepository,
         WorkerEquipmentRepository workerEquipmentRepository,
-        AuditLogService auditLogService
+        AppUserRepository appUserRepository,
+        AuditLogService auditLogService,
+        NotificationService notificationService,
+        PushNotificationService pushNotificationService
     ) {
         this.equipmentFaultRepository = equipmentFaultRepository;
         this.equipmentShiftLogRepository = equipmentShiftLogRepository;
         this.hazardReportRepository = hazardReportRepository;
         this.maintenanceRequestRepository = maintenanceRequestRepository;
         this.workerEquipmentRepository = workerEquipmentRepository;
+        this.appUserRepository = appUserRepository;
         this.auditLogService = auditLogService;
+        this.notificationService = notificationService;
+        this.pushNotificationService = pushNotificationService;
+    }
+
+    /** Supervisors on the worker's site — the audience for equipment fault/maintenance alerts. */
+    private List<AppUser> supervisorsOnSite(String site) {
+        return appUserRepository.findByAssignedSiteIgnoreCase(site).stream()
+            .filter(u -> "supervisor".equals(u.getRole()))
+            .filter(u -> u.getDeletedAt() == null && !Boolean.FALSE.equals(u.getActive()))
+            .collect(Collectors.toList());
+    }
+
+    private void notifySupervisors(String site, String type, String title, String body, String targetType, Long targetId) {
+        try {
+            List<AppUser> recipients = supervisorsOnSite(site);
+            List<String> tokens = recipients.stream()
+                .map(AppUser::getPushToken)
+                .filter(t -> t != null && !t.isBlank())
+                .collect(Collectors.toList());
+            pushNotificationService.sendToTokens(tokens, title, body, "default");
+            for (AppUser recipient : recipients) {
+                notificationService.notify(recipient.getEmail(), type, title, body, targetType, targetId);
+            }
+        } catch (Exception e) {
+            log.warn("Push notification failed for {}: {}", type, e.getMessage());
+        }
     }
 
     @GetMapping("/api/workers/me")
@@ -167,6 +209,15 @@ public class WorkerController {
             fault.getEquipmentCode() + ": " + fault.getDescription()
         );
 
+        notifySupervisors(
+            user.assignedSite(),
+            "EQUIPMENT_FAULT",
+            "Equipment fault — " + fault.getEquipmentCode(),
+            user.fullName() + " reported: " + fault.getDescription(),
+            "EquipmentFault",
+            fault.getId()
+        );
+
         return fault;
     }
 
@@ -189,6 +240,15 @@ public class WorkerController {
             "MaintenanceRequest",
             maintenanceRequest.getId(),
             maintenanceRequest.getEquipmentCode() + ": " + maintenanceRequest.getRequestDetails()
+        );
+
+        notifySupervisors(
+            user.assignedSite(),
+            "MAINTENANCE_REQUESTED",
+            "Maintenance requested — " + maintenanceRequest.getEquipmentCode(),
+            user.fullName() + " requested: " + maintenanceRequest.getRequestDetails(),
+            "MaintenanceRequest",
+            maintenanceRequest.getId()
         );
 
         return maintenanceRequest;

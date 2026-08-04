@@ -8,6 +8,7 @@ import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.AttendanceRepository;
 import MineOpsBackend.repository.PayCycleRepository;
 import MineOpsBackend.repository.PaySplitConfigRepository;
+import MineOpsBackend.repository.ShiftLogGroupMemberRepository;
 import MineOpsBackend.repository.ShiftLogRepository;
 import MineOpsBackend.repository.SiteRepository;
 import MineOpsBackend.repository.WorkerPayRecordRepository;
@@ -39,6 +40,7 @@ class PayCalculationServiceTest {
     @Mock AttendanceRepository attendanceRepo;
     @Mock AppUserRepository userRepo;
     @Mock SiteRepository siteRepo;
+    @Mock ShiftLogGroupMemberRepository groupMemberRepo;
 
     @InjectMocks PayCalculationService service;
 

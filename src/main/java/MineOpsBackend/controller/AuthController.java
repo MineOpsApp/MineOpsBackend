@@ -346,6 +346,41 @@ public class AuthController {
         return Map.of("success", true);
     }
 
+    // For the forced first-login flow only (mustChangePassword == true after a supervisor-issued
+    // reset): the caller just authenticated moments ago using the temporary password to get this
+    // JWT, so re-entering that same temporary password as a "current password" is redundant
+    // friction, not a real security check — and confusingly labelled, since the account has no
+    // other password to enter. Gated strictly to accounts already flagged mustChangePassword, so
+    // this can't be used as a general "change password without knowing the old one" bypass.
+    @PostMapping("/api/auth/complete-password-reset")
+    @PreAuthorize("isAuthenticated()")
+    public Map<String, Object> completePasswordReset(
+        @AuthenticationPrincipal AuthenticatedUser principal,
+        @RequestBody Map<String, String> body
+    ) {
+        String newPassword = body.get("newPassword");
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "New password must be at least 6 characters");
+        }
+
+        AppUser user = appUserRepository.findByEmailIgnoreCase(principal.email())
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (!Boolean.TRUE.equals(user.getMustChangePassword())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No password reset is pending for this account");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
+        appUserRepository.save(user);
+
+        // Same as changePassword above: forces a fresh login everywhere, including this device,
+        // so the client must not try to keep using its current session after this call succeeds.
+        refreshTokenService.revokeAll(user.getId());
+
+        return Map.of("success", true);
+    }
+
     @PostMapping("/api/auth/push-token")
     @PreAuthorize("isAuthenticated()")
     public Map<String, Object> savePushToken(

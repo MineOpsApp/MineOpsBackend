@@ -11,6 +11,7 @@ import MineOpsBackend.repository.MarketplaceTransactionRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
 import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.PushNotificationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -40,6 +41,7 @@ class MarketplaceOfferControllerTest {
     @Mock AppUserRepository userRepo;
     @Mock AuditLogService auditLogService;
     @Mock NotificationService notificationService;
+    @Mock PushNotificationService pushNotificationService;
 
     @InjectMocks MarketplaceOfferController controller;
 
@@ -85,6 +87,10 @@ class MarketplaceOfferControllerTest {
         o.setOfferPrice(BigDecimal.valueOf(200000));
         o.setOfferQuantity(BigDecimal.valueOf(400));
         o.setStatus("PENDING");
+        // Every offer built by this helper models a buyer-initiated offer a supervisor is
+        // acting on — acceptOffer/rejectOffer both require proposedByRole to match whose turn
+        // it is to respond, a check added after this helper was first written.
+        o.setProposedByRole("BUYER");
         return o;
     }
 
@@ -151,7 +157,7 @@ class MarketplaceOfferControllerTest {
     @Test
     void counterOffer_throws403_whenListingBelongsToDifferentSite() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
         when(listingRepo.findById(1L)).thenReturn(Optional.of(activeListing("Tarkwa Mine")));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -166,7 +172,7 @@ class MarketplaceOfferControllerTest {
     void counterOffer_throws409_whenOfferNotPending() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
         offer.setStatus("REJECTED");
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
         when(listingRepo.findById(1L)).thenReturn(Optional.of(activeListing(SITE)));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
@@ -179,7 +185,7 @@ class MarketplaceOfferControllerTest {
     @Test
     void counterOffer_marksOriginalCOUNTEREDandCreatesNewOffer() {
         MarketplaceOffer original = pendingOffer("ama@buyer.com", 1L, SITE);
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(original));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(original));
         when(listingRepo.findById(1L)).thenReturn(Optional.of(activeListing(SITE)));
         when(offerRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -202,8 +208,8 @@ class MarketplaceOfferControllerTest {
     @Test
     void acceptOffer_throws403_whenListingBelongsToDifferentSite() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
-        when(listingRepo.findById(1L)).thenReturn(Optional.of(activeListing("Tarkwa Mine")));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
+        when(listingRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(activeListing("Tarkwa Mine")));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
             () -> controller.acceptOffer(supervisor(), 1L));
@@ -216,8 +222,8 @@ class MarketplaceOfferControllerTest {
     void acceptOffer_throws409_whenOfferNotPending() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
         offer.setStatus("COUNTERED");
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
-        when(listingRepo.findById(1L)).thenReturn(Optional.of(activeListing(SITE)));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
+        when(listingRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(activeListing(SITE)));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
             () -> controller.acceptOffer(supervisor(), 1L));
@@ -229,8 +235,12 @@ class MarketplaceOfferControllerTest {
     void acceptOffer_createsTransactionMarksListingSoldAndAudits() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
         MineralListing listing = activeListing(SITE);
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
-        when(listingRepo.findById(1L)).thenReturn(Optional.of(listing));
+        // The listing is only marked SOLD once its full quantity is taken — a partial offer
+        // leaves it ACTIVE with the remainder still purchasable (see acceptOffer's comment).
+        // This test's own name is about the SOLD path, so the offer must fully consume it.
+        offer.setOfferQuantity(listing.getQuantity());
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
+        when(listingRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(listing));
         when(offerRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(listingRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(transactionRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -298,7 +308,7 @@ class MarketplaceOfferControllerTest {
     @Test
     void withdrawOffer_throws403_whenNotOwner() {
         MarketplaceOffer offer = pendingOffer("other@buyer.com", 1L, SITE);
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
             () -> controller.withdrawOffer(buyer(), 1L));
@@ -311,7 +321,7 @@ class MarketplaceOfferControllerTest {
     void withdrawOffer_throws409_whenNotPending() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
         offer.setStatus("ACCEPTED");
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
             () -> controller.withdrawOffer(buyer(), 1L));
@@ -322,7 +332,7 @@ class MarketplaceOfferControllerTest {
     @Test
     void withdrawOffer_marksWithdrawn_whenOwnerAndPending() {
         MarketplaceOffer offer = pendingOffer("ama@buyer.com", 1L, SITE);
-        when(offerRepo.findById(1L)).thenReturn(Optional.of(offer));
+        when(offerRepo.findByIdForUpdate(1L)).thenReturn(Optional.of(offer));
         when(offerRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         MarketplaceOffer result = controller.withdrawOffer(buyer(), 1L);

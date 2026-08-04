@@ -64,17 +64,26 @@ class PayControllerTest {
         return c;
     }
 
-    // ── dual sign-off rule ────────────────────────────────────────────────────
+    // ── single-approver flow ──────────────────────────────────────────────────
+    //
+    // Maker-checker segregation (requiring a different person for the second approval) was
+    // intentionally removed — see the comments on approveManager()/approveSupervisor() in
+    // PayController. Many sites run with a single supervisor account, now trusted to carry a
+    // pay cycle through both approvals itself.
 
     @Test
-    void approveSupervisor_rejects_whenSamePersonAlreadyGaveFirstApproval() {
+    void approveSupervisor_succeeds_whenSamePersonGaveFirstApproval() {
         PayCycle cycle = cycleWithId(1L, SITE, "MANAGER_APPROVED", "sup@mine.com");
         when(payCycleRepo.findById(1L)).thenReturn(Optional.of(cycle));
+        when(payRecordRepo.findByPayCycleId(1L)).thenReturn(List.of());
+        when(shiftLogRepo.findUnpaidApprovedLogs(any(), any(), any(), any())).thenReturn(List.of());
+        when(shiftLogRepo.saveAll(any())).thenReturn(List.of());
+        when(payCycleRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-            () -> controller.approveSupervisor(sup("sup@mine.com"), 1L));
+        controller.approveSupervisor(sup("sup@mine.com"), 1L);
 
-        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(cycle.getSupervisorApprovedBy()).isEqualTo("sup@mine.com");
+        assertThat(cycle.getStatus()).isEqualTo("DISBURSED");
     }
 
     @Test

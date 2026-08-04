@@ -1,9 +1,13 @@
 package MineOpsBackend.controller;
 
 import MineOpsBackend.model.MarketplaceTransaction;
+import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.MarketplaceTransactionRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import MineOpsBackend.service.NotificationService;
+import MineOpsBackend.service.PaystackService;
+import MineOpsBackend.service.PushNotificationService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -29,6 +33,10 @@ class MarketplaceTransactionControllerTest {
 
     @Mock MarketplaceTransactionRepository transactionRepo;
     @Mock AuditLogService auditLogService;
+    @Mock NotificationService notificationService;
+    @Mock PushNotificationService pushNotificationService;
+    @Mock AppUserRepository userRepo;
+    @Mock PaystackService paystackService;
 
     @InjectMocks MarketplaceTransactionController controller;
 

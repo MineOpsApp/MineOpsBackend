@@ -67,10 +67,11 @@ public Page<Map<String, Object>> getNotices(@AuthenticationPrincipal Authenticat
     java.time.LocalDateTime now = java.time.LocalDateTime.now(java.time.ZoneOffset.UTC);
     Page<Notice> noticesPage;
     if ("worker".equals(user.role()) || "guest".equals(user.role())) {
-        java.time.LocalDateTime userCreatedAt = appUserRepository.findByEmailIgnoreCase(user.email())
-            .map(MineOpsBackend.model.AppUser::getCreatedAt)
-            .orElse(java.time.LocalDateTime.MIN);
-        noticesPage = noticeRepository.findActiveNoticesBySiteForUser(now, site, userCreatedAt, pageable);
+        // Every currently-active notice for the site, same as everyone else sees — not gated
+        // by the worker's own account-creation date. That gate used to hide any notice posted
+        // before a worker's account existed, which for a worker onboarded after the fact (the
+        // common case) meant every notice already on site was invisible to them forever.
+        noticesPage = noticeRepository.findActiveNoticesBySite(now, site, pageable);
     } else {
         noticesPage = noticeRepository.findBySiteIgnoreCaseOrderByCreatedAtDesc(site, pageable);
     }

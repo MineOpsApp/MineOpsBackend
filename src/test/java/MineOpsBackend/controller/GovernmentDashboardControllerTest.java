@@ -7,6 +7,7 @@ import MineOpsBackend.repository.IllegalMineReportRepository;
 import MineOpsBackend.repository.MineralInventoryRepository;
 import MineOpsBackend.repository.MiningPermitStatusRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.AuditLogService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -32,6 +33,7 @@ class GovernmentDashboardControllerTest {
     @Mock BulkPurchaseRequestRepository bulkPurchaseRepo;
     @Mock IllegalMineReportRepository illegalMineReportRepo;
     @Mock MiningPermitStatusRepository permitRepo;
+    @Mock AuditLogService auditLogService;
 
     @InjectMocks GovernmentDashboardController controller;
 
@@ -127,9 +129,9 @@ class GovernmentDashboardControllerTest {
         when(illegalMineReportRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         IllegalMineReport result = controller.reviewReport(
-            government(), 1L, Map.of("status", "CONFIRMED", "reviewNotes", "Verified on-site"));
+            government(), 1L, Map.of("status", "ACTIONED", "reviewNotes", "Verified on-site"));
 
-        assertThat(result.getStatus()).isEqualTo("CONFIRMED");
+        assertThat(result.getStatus()).isEqualTo("ACTIONED");
         assertThat(result.getReviewNotes()).isEqualTo("Verified on-site");
     }
 

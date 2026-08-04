@@ -4,12 +4,14 @@ import MineOpsBackend.model.AttendanceRecord;
 import MineOpsBackend.model.AppUser;
 import MineOpsBackend.model.PayCycle;
 import MineOpsBackend.model.ShiftLog;
+import MineOpsBackend.model.ShiftLogGroupMember;
 import MineOpsBackend.model.WorkerPayRecord;
 import MineOpsBackend.model.Site;
 import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.AttendanceRepository;
 import MineOpsBackend.repository.PayCycleRepository;
 import MineOpsBackend.repository.PaySplitConfigRepository;
+import MineOpsBackend.repository.ShiftLogGroupMemberRepository;
 import MineOpsBackend.repository.ShiftLogRepository;
 import MineOpsBackend.repository.SiteRepository;
 import MineOpsBackend.repository.WorkerPayRecordRepository;
@@ -38,6 +40,7 @@ public class PayCalculationService {
     private final AttendanceRepository attendanceRepo;
     private final AppUserRepository userRepo;
     private final SiteRepository siteRepo;
+    private final ShiftLogGroupMemberRepository groupMemberRepo;
 
     public PayCalculationService(
         ShiftLogRepository shiftLogRepo,
@@ -46,7 +49,8 @@ public class PayCalculationService {
         PaySplitConfigRepository configRepo,
         AttendanceRepository attendanceRepo,
         AppUserRepository userRepo,
-        SiteRepository siteRepo
+        SiteRepository siteRepo,
+        ShiftLogGroupMemberRepository groupMemberRepo
     ) {
         this.shiftLogRepo = shiftLogRepo;
         this.payCycleRepo = payCycleRepo;
@@ -55,6 +59,7 @@ public class PayCalculationService {
         this.attendanceRepo = attendanceRepo;
         this.userRepo = userRepo;
         this.siteRepo = siteRepo;
+        this.groupMemberRepo = groupMemberRepo;
     }
 
     @Transactional
@@ -100,6 +105,13 @@ public class PayCalculationService {
         Map<String, String> workerNames = new HashMap<>();
         for (ShiftLog log : logs) {
             workerNames.put(log.getWorkerEmail().toLowerCase(), log.getWorkerName());
+        }
+        // Group members named on a log share in the split the same as the submitter — the
+        // volume itself was only ever counted once, in totalVolume above, so folding co-workers
+        // in here only changes who the resulting grossTotal is divided among, not its size.
+        List<Long> logIds = logs.stream().map(ShiftLog::getId).collect(java.util.stream.Collectors.toList());
+        for (ShiftLogGroupMember member : groupMemberRepo.findByShiftLogIdIn(logIds)) {
+            workerNames.put(member.getWorkerEmail().toLowerCase(), member.getWorkerName());
         }
 
         Map<String, BigDecimal> shares = new HashMap<>();

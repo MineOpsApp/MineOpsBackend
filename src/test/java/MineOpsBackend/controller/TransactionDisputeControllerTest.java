@@ -5,6 +5,7 @@ import MineOpsBackend.model.TransactionDispute;
 import MineOpsBackend.repository.MarketplaceTransactionRepository;
 import MineOpsBackend.repository.TransactionDisputeRepository;
 import MineOpsBackend.security.AuthenticatedUser;
+import MineOpsBackend.service.AuditLogService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +31,7 @@ class TransactionDisputeControllerTest {
 
     @Mock MarketplaceTransactionRepository txRepo;
     @Mock TransactionDisputeRepository disputeRepo;
+    @Mock AuditLogService auditLogService;
 
     @InjectMocks TransactionDisputeController controller;
 

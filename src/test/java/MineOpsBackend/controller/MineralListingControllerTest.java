@@ -7,6 +7,8 @@ import MineOpsBackend.repository.AppUserRepository;
 import MineOpsBackend.repository.MineralListingRepository;
 import MineOpsBackend.security.AuthenticatedUser;
 import MineOpsBackend.service.AuditLogService;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -14,6 +16,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
@@ -33,8 +36,17 @@ class MineralListingControllerTest {
     @Mock MineralListingRepository listingRepo;
     @Mock AppUserRepository userRepo;
     @Mock AuditLogService auditLogService;
+    @Mock EntityManager entityManager;
 
     @InjectMocks MineralListingController controller;
+
+    // entityManager is a @PersistenceContext-injected field, not a constructor parameter —
+    // Mockito's @InjectMocks only does constructor injection when a matching constructor
+    // exists (it does here), so this field is otherwise left null regardless of the @Mock above.
+    @BeforeEach
+    void wireEntityManager() {
+        ReflectionTestUtils.setField(controller, "entityManager", entityManager);
+    }
 
     private static final String SITE = "Obuasi Mine";
 
